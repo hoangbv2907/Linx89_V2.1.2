@@ -1,0 +1,14 @@
+.vs/
+x64/
+Debug/
+Release/
+dist/
+git/
+*.user
+*.log
+*.exe
+*.obj
+*.pdb
+*.ilk
+UpgradeLog*.htm
+last_print_data.json
