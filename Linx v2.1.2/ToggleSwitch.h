@@ -16,6 +16,8 @@ public:
     void SetState(bool state);
 	// Lấy trạng thái hiện tại
     bool IsOn() const { return isOn_; }
+    // [2026-11-22 R43] handle để UIManager::Layout di chuyển control
+    HWND GetHandle() const { return hwnd_; }
 
 private:
 	HWND hwnd_ = nullptr;   // Handle của control

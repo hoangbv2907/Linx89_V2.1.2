@@ -64,12 +64,23 @@ public:
     // [2026-11-18 R37] Enqueue: in bù (+) / trừ (-) sản lượng khi máy đang chạy. delta cộng vào target hiện tại.
     void AdjustCount(int delta);
 
+    // [2026-11-22 R44] Danh sách bản tin trên máy (97D, chỉ khi máy KHÔNG đang in) và chọn bản tin (30D).
+    void RefreshMessageList();
+    void SelectMessage(const std::wstring& name);
+
     // ================== Validation / Policy ==================
     bool ValidatePrintContent(const std::wstring& content);      // Kiểm tra nội dung in hợp lệ
     bool ValidatePrintCount(int count);                          // Kiểm tra số lượng in hợp lệ
 
+    // [2026-11-22 R42] Cổng giấy phép: trả false = hết hạn -> chặn các thao tác ĐIỀU KHIỂN in (jet, in, SET, gửi field, in bù/trừ).
+    // Kết nối / ngắt / dừng jet / dừng in / tải thông tin vẫn được phép (cần để lấy serial máy in và dừng máy an toàn).
+    // Gọi trước StartWorkerThread(); hàm được gọi từ UI thread nên phải thread-safe.
+    void SetLicenseGate(std::function<bool()> allowed) { licenseGate_ = std::move(allowed); }
+
     void DisableAutoReconnect() { autoReconnect_ = false; }      // Tắt tự động reconnect
-    void EnableAutoReconnect() { autoReconnect_ = true; }        // Bật tự động reconnect
+    void EnableAutoReconnect() { autoReconnect_ = autoReconnectAllowed_.load(); }   // [R43] theo cài đặt người dùng
+    // [2026-11-22 R43] Cài đặt "tự kết nối lại": false = không bao giờ tự kết nối lại khi mất kết nối.
+    void SetAutoReconnectAllowed(bool allowed) { autoReconnectAllowed_ = allowed; if (!allowed) autoReconnect_ = false; }        // Bật tự động reconnect
 
     // ================== Getters ==================
     PrinterState GetCurrentState() const;                        // Lấy trạng thái hiện tại trong PrinterModel
@@ -107,6 +118,8 @@ private:
     std::atomic<bool> emergencyInProgress_{ false };       // [2026-11-13 R10] thay cho static trong EmergencyCleanup
     std::atomic<bool> comprehensiveInProgress_{ false };   // [2026-11-13 R10] thay cho static trong ComprehensiveCleanup
     std::string printMessageName_;                 // [2026-11-13 R07] message trên máy cần load trước khi in
+    std::function<bool()> licenseGate_;            // [2026-11-22 R42] null = không giới hạn
+    bool LicenseBlocked();                         // [2026-11-22 R42] true (kèm log) nếu hết hạn
     std::mutex nameMutex_;                         // [2026-11-16 R28] bảo vệ printMessageName_
 
     // ---- các biến dưới đây CHỈ được dùng trong worker thread ----
@@ -124,6 +137,7 @@ private:
     std::atomic<bool> jetTransitioning_{ false };
 
     // ================== Reconnect management ==================
+    std::atomic<bool> autoReconnectAllowed_{ true };   // [2026-11-22 R43] cài đặt người dùng
     std::atomic<bool> autoReconnect_{ true };      // Tự động reconnect khi mất kết nối
     std::atomic<int> reconnectAttempts_{ 0 };      // Số lần đã thử reconnect
     const int MAX_RECONNECT_ATTEMPTS = 5;          // Giới hạn số lần reconnect
@@ -167,6 +181,8 @@ private:
     void HandleUploadRemoteFieldRequest(const Request& req); // Upload nội dung Remote field data by name
 
     // Jet
+    void HandleRefreshMessagesRequest();             // [2026-11-22 R44]
+    void HandleSelectMessageRequest(const Request& request);   // [2026-11-22 R44]
     void HandleDownloadFromPrinterRequest();         // [2026-11-18 R36]
     void HandleAdjustCountRequest(const Request& request);   // [2026-11-18 R37]
     // [2026-11-18 R33] Đọc 157D, kiểm tra độ dài, đệm khoảng trắng cho ĐÚNG bằng kích thước remote field.

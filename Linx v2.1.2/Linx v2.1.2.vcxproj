@@ -128,12 +128,19 @@
   <ItemGroup>
     <ClInclude Include="..\..\..\..\..\Downloads\json.hpp" />
     <ClInclude Include="AppController.h" />
+    <ClInclude Include="AppPaths.h" />
+    <ClInclude Include="AppSettings.h" />
     <ClInclude Include="ColorScheme.h" />
     <ClInclude Include="CommonDefs.h" />
     <ClInclude Include="CommonTypes.h" />
     <ClInclude Include="EncodingUtils.h" />
+    <ClInclude Include="EventLog.h" />
+    <ClInclude Include="LicenseCore.h" />
+    <ClInclude Include="LicenseDialog.h" />
+    <ClInclude Include="LicensePublicKey.h" />
     <ClInclude Include="FontManager.h" />
     <ClInclude Include="Logger.h" />
+    <ClInclude Include="LogViewerDialog.h" />
     <ClInclude Include="MessageBuilder.h" />
     <ClInclude Include="MessageDef.h" />
     <ClInclude Include="MessageLogger.h" />
@@ -144,6 +151,8 @@
     <ClInclude Include="RciClient.h" />
     <ClInclude Include="RciWarnings.h" />
     <ClInclude Include="RequestQueue.h" />
+    <ClInclude Include="SettingsDialog.h" />
+    <ClInclude Include="UILayout.h" />
     <ClInclude Include="ResourceTracker.h" />
     <ClInclude Include="ThreadSafeQueue.h" />
     <ClInclude Include="ToggleSwitch.h" />
@@ -152,9 +161,14 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AppController.cpp" />
+    <ClCompile Include="AppSettings.cpp" />
+    <ClCompile Include="LicenseCore.cpp" />
+    <ClCompile Include="LicenseDialog.cpp" />
+    <ClCompile Include="LogViewerDialog.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MessageLogger.cpp" />
     <ClCompile Include="ModernButton.cpp" />
+    <ClCompile Include="SettingsDialog.cpp" />
     <ClCompile Include="PrintPersistStorage.cpp" />
     <ClCompile Include="RciClient.cpp" />
     <ClCompile Include="RciWarnings.cpp" />

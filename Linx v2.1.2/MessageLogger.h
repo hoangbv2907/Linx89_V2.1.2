@@ -17,6 +17,8 @@ public:
     void Clear();
 	// Đặt font tùy chỉnh cho RichEdit control
     void SetFont(HFONT hFont);
+    // [2026-11-22 R43] handle để UIManager::Layout đổi kích thước theo cửa sổ
+    HWND GetHandle() const { return hwnd_; }
 
 private:
 	HWND hwnd_ = nullptr;   // Handle của RichEdit control

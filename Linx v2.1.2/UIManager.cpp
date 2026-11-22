@@ -1,6 +1,8 @@
 ﻿#include "UIManager.h"
 #include "FontManager.h"
 #include "Logger.h"
+#include "EventLog.h"
+#include "UILayout.h"
 #include <commctrl.h>
 #include <richedit.h>
 #include <algorithm>
@@ -24,37 +26,48 @@ bool UIManager::Initialize(HWND hParent) {
 // Tạo và cấu hình tất cả các điều khiển giao diện người dùng
 void UIManager::CreateControls() {
     if (!hParent_) return;
+    // [2026-11-22 R43] DPI của cửa sổ: font + kích thước control co theo DPI; vị trí do Layout() đặt theo kích thước thật.
+    dpi_ = (int)GetDpiForWindow(hParent_);
+    if (dpi_ < 48) dpi_ = 96;
+    FontManager::GetInstance().SetDpi(dpi_);
 
-    // IP Address + toggle
-    CreateStatic(20, 20, 100, 20, L"Địa chỉ IP:");
+    // IP Address + toggle + biểu tượng Cài đặt (gộp Gia hạn / Nhật ký / Kết nối vào đây)
+    lblIp_ = CreateStatic(0, 0, 10, 10, L"Địa chỉ IP:");
+    // Control IP tính bố cục các ô con lúc tạo -> tạo với kích thước thật (theo DPI), Layout() chỉ đặt lại vị trí
     hIpAddress_ = CreateWindowW(WC_IPADDRESSW, L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-        150, 20, 150, 23, hParent_, NULL, NULL, NULL);
-    toggleSwitch_->Create(hParent_, 320, 20, 60, 26, IDC_TOGGLE);
+        0, 0, MulDiv(150, dpi_, 96), MulDiv(23, dpi_, 96), hParent_, NULL, NULL, NULL);
+    toggleSwitch_->Create(hParent_, 0, 0, 60, 26, IDC_TOGGLE);
+    hBtnSettings_ = CreateButton(0, 0, 36, 30, L"⚙", IDC_BTN_SETTINGS);
     // Nội dung in
-    CreateStatic(20, 60, 100, 20, L"Nội dung in:");
-    hInputValue_ = CreateEdit(150, 60, 240, 60, L"");
-    hBtnUpload_ = CreateButton(400, 60, 80, 28, L"Upload", IDC_BTN_UPLOAD);
-    hBtnDownload_ = CreateButton(400, 92, 80, 28, L"Dowload", IDC_BTN_DOWNLOAD);   // [2026-11-18 R36]
-    hFieldInfo_ = CreateStatic(150, 122, 330, 16, L"Remote field: (chưa đọc từ máy - bấm Tải Về)");
+    lblContent_ = CreateStatic(0, 0, 10, 10, L"Nội dung in:");
+    hInputValue_ = CreateEdit(0, 0, 10, 10, L"");
+    hBtnUpload_ = CreateButton(0, 0, 10, 10, L"Upload", IDC_BTN_UPLOAD);
+    hBtnDownload_ = CreateButton(0, 0, 10, 10, L"Dowload", IDC_BTN_DOWNLOAD);   // [2026-11-18 R36]
+    hFieldInfo_ = CreateStatic(0, 0, 10, 10, L"Remote field: (chưa đọc từ máy - bấm Tải Về)");
+    // [2026-11-22 R44] Chọn bản tin từ danh sách trên máy (97D)
+    lblMessage_ = CreateStatic(0, 0, 10, 10, L"Bản tin:");
+    hMessageCombo_ = CreateWindowW(L"COMBOBOX", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_VSCROLL | CBS_DROPDOWNLIST,
+        0, 0, 10, 10, hParent_, (HMENU)(INT_PTR)IDC_MSG_COMBO, NULL, NULL);
+    hBtnMsgRefresh_ = CreateButton(0, 0, 10, 10, L"Làm mới", IDC_BTN_MSGREFRESH);
     // Số lượng
-    CreateStatic(20, 140, 100, 20, L"Số lượng:");
-    hCount_ = CreateEdit(150, 140, 80, 23, L"1");
+    lblCount_ = CreateStatic(0, 0, 10, 10, L"Số lượng:");
+    hCount_ = CreateEdit(0, 0, 10, 10, L"1");
     // Hiển thị số lượng đã đạt được
-    CreateStatic(240, 140, 120, 23, L"Đã đạt được:");
+    lblReached_ = CreateStatic(0, 0, 10, 10, L"Đã đạt được:");
     hCurrentCount_ = CreateWindowW(L"STATIC", L"0",
         WS_CHILD | WS_VISIBLE | SS_CENTER | SS_CENTERIMAGE,
-        350, 140, 60, 22, hParent_,(HMENU)IDC_CURRENT_COUNT, NULL, NULL);
+        0, 0, 10, 10, hParent_, (HMENU)IDC_CURRENT_COUNT, NULL, NULL);
     // [2026-11-18 R37] In bù (+) / trừ (-) khi máy đang chạy
-    CreateStatic(20, 172, 120, 20, L"Bù/Trừ (+/-):");
+    lblAdjust_ = CreateStatic(0, 0, 10, 10, L"Bù/Trừ (+/-):");
     hAdjust_ = CreateWindowW(L"EDIT", L"0", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        150, 170, 80, 23, hParent_, NULL, NULL, NULL);
-    hBtnAdjust_ = CreateButton(240, 170, 110, 23, L"Điều chỉnh", IDC_BTN_ADJUST);
+        0, 0, 10, 10, hParent_, NULL, NULL, NULL);
+    hBtnAdjust_ = CreateButton(0, 0, 10, 10, L"Điều chỉnh", IDC_BTN_ADJUST);
     // Modern buttons
-    btnStart_.Create(hParent_, 20, 205, 140, 40, L"KHỞI ĐỘNG", IDC_BTN_START);
-    btnPrint_.Create(hParent_, 180, 205, 140, 40, L"IN", IDC_BTN_PRINT);
-    btnStop_.Create(hParent_, 340, 205, 140, 40, L"DỪNG", IDC_BTN_STOP);
-    btnClear_.Create(hParent_, 380, 380, 100, 20, L"XÓA NHẬT KÝ", IDC_BTN_CLEAR);
-    btnSet_.Create(hParent_, 420, 140, 60, 23, L"SET", IDC_BTN_SET);
+    btnStart_.Create(hParent_, 0, 0, 10, 10, L"KHỞI ĐỘNG", IDC_BTN_START);
+    btnPrint_.Create(hParent_, 0, 0, 10, 10, L"IN", IDC_BTN_PRINT);
+    btnStop_.Create(hParent_, 0, 0, 10, 10, L"DỪNG", IDC_BTN_STOP);
+    btnClear_.Create(hParent_, 0, 0, 10, 10, L"XÓA NHẬT KÝ", IDC_BTN_CLEAR);
+    btnSet_.Create(hParent_, 0, 0, 10, 10, L"SET", IDC_BTN_SET);
     // Subclass các nút
     btnStart_.Subclass();
     btnPrint_.Subclass();
@@ -62,16 +75,28 @@ void UIManager::CreateControls() {
     btnClear_.Subclass();
     btnSet_.Subclass();
     // Status display
-    hStatusDisplay_ = CreateStatic(20, 255, 460, 24, L"CHƯA KẾT NỐI");
-        SetWindowLongPtr(hStatusDisplay_, GWL_STYLE,
-        GetWindowLongPtr(hStatusDisplay_, GWL_STYLE) | SS_CENTER);
+    hStatusDisplay_ = CreateStatic(0, 0, 10, 10, L"CHƯA KẾT NỐI");
+    SetWindowLongPtr(hStatusDisplay_, GWL_STYLE, GetWindowLongPtr(hStatusDisplay_, GWL_STYLE) | SS_CENTER);
     // [2026-11-18 R35] Cảnh báo/lỗi của máy in
-    CreateStatic(20, 288, 200, 20, L"CẢNH BÁO MÁY IN:");
+    lblWarn_ = CreateStatic(0, 0, 10, 10, L"CẢNH BÁO MÁY IN:");
     hWarnings_ = CreateWindowW(L"EDIT", L"(không có)", WS_CHILD | WS_VISIBLE | WS_BORDER | WS_VSCROLL |
-        ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL, 20, 310, 460, 62, hParent_, NULL, NULL, NULL);
+        ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL, 0, 0, 10, 10, hParent_, NULL, NULL, NULL);
     // Log box
-    CreateStatic(20, 380, 100, 20, L"NHẬT KÝ:");
-    messageLogger_->Create(hParent_, 20, 405, 460, 190);
+    lblLog_ = CreateStatic(0, 0, 10, 10, L"NHẬT KÝ:");
+    messageLogger_->Create(hParent_, 0, 0, 10, 10);
+
+    // Gợi ý khi rê chuột vào biểu tượng Cài đặt
+    hTip_ = CreateWindowExW(WS_EX_TOPMOST, TOOLTIPS_CLASSW, nullptr, WS_POPUP | TTS_ALWAYSTIP | TTS_NOPREFIX,
+        CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hParent_, nullptr, GetModuleHandleW(nullptr), nullptr);
+    if (hTip_) {
+        TTTOOLINFOW ti{};
+        ti.cbSize = sizeof(ti);
+        ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
+        ti.hwnd = hParent_;
+        ti.uId = (UINT_PTR)hBtnSettings_;
+        ti.lpszText = (LPWSTR)L"Cài đặt: kết nối, nhật ký, gia hạn bản quyền";
+        SendMessageW(hTip_, TTM_ADDTOOLW, 0, (LPARAM)&ti);
+    }
     // Apply fonts
     ApplyFontToAllControls();
     // Set default IP
@@ -82,11 +107,95 @@ void UIManager::CreateControls() {
     initialState.statusText = L"Chưa kết nối";
     UpdateButtonStates(initialState);
     UpdatePrinterUIState(initialState);
+    // Đặt vị trí / kích thước mọi control theo kích thước client hiện tại
+    RECT rc{};
+    GetClientRect(hParent_, &rc);
+    Layout(rc.right, rc.bottom);
+}
+
+// [2026-11-22 R43] Đặt lại vị trí / kích thước mọi control khi cửa sổ đổi kích thước (WM_SIZE) hoặc đổi DPI.
+void UIManager::Layout(int clientW, int clientH) {
+    if (!hIpAddress_ || !messageLogger_ || !messageLogger_->GetHandle() || clientW <= 0 || clientH <= 0) return;
+    const UiRects r = ComputeLayout(clientW, clientH, dpi_);
+    HDWP dwp = BeginDeferWindowPos(32);
+    auto mv = [&](HWND c, const RECT& rc) {
+        if (!c || !dwp) return;
+        dwp = DeferWindowPos(dwp, c, nullptr, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top, SWP_NOZORDER | SWP_NOACTIVATE);
+    };
+    mv(lblIp_, r.lblIp);          mv(hIpAddress_, r.ip);
+    mv(toggleSwitch_ ? toggleSwitch_->GetHandle() : nullptr, r.toggle);
+    mv(hBtnSettings_, r.settings);
+    mv(lblContent_, r.lblContent); mv(hInputValue_, r.content);
+    mv(hBtnUpload_, r.upload);    mv(hBtnDownload_, r.download);   mv(hFieldInfo_, r.fieldInfo);
+    mv(lblMessage_, r.lblMessage); mv(hBtnMsgRefresh_, r.msgRefresh);
+    if (hMessageCombo_ && dwp) {   // chiều cao của combobox gồm cả phần danh sách thả xuống
+        RECT cr = r.message;
+        cr.bottom = cr.top + MulDiv(220, dpi_, 96);
+        mv(hMessageCombo_, cr);
+    }
+    mv(lblCount_, r.lblCount);    mv(hCount_, r.count);
+    mv(lblReached_, r.lblReached); mv(hCurrentCount_, r.reached);  mv(btnSet_.GetHandle(), r.set);
+    mv(lblAdjust_, r.lblAdjust);  mv(hAdjust_, r.adjust);          mv(hBtnAdjust_, r.adjustBtn);
+    mv(btnStart_.GetHandle(), r.start); mv(btnPrint_.GetHandle(), r.print); mv(btnStop_.GetHandle(), r.stop);
+    mv(hStatusDisplay_, r.status);
+    mv(lblWarn_, r.lblWarn);      mv(hWarnings_, r.warn);
+    mv(lblLog_, r.lblLog);        mv(btnClear_.GetHandle(), r.clear);
+    mv(messageLogger_->GetHandle(), r.log);
+    if (dwp) EndDeferWindowPos(dwp);
+    InvalidateRect(hParent_, nullptr, TRUE);
+}
+
+// [2026-11-22 R43] Đổi DPI (kéo cửa sổ sang màn hình khác tỉ lệ): tạo lại font; WindowManager gọi Layout() sau đó.
+void UIManager::SetDpi(int dpi) {
+    if (dpi < 48) dpi = 96;
+    dpi_ = dpi;
+    FontManager::GetInstance().SetDpi(dpi);
+    ApplyFontToAllControls();
+}
+
+// [2026-11-22 R44] Đổ danh sách bản tin vào ô chọn và chọn đúng bản tin; không đổi khi người dùng đang mở danh sách
+// hoặc vừa chọn (đợi máy xác nhận) để ô chọn không bị giật.
+void UIManager::UpdateMessageList(const PrinterState& state) {
+    if (!hMessageCombo_) return;
+    if (SendMessageW(hMessageCombo_, CB_GETDROPPEDSTATE, 0, 0)) return;
+    if (state.messages != lastMessages_) {
+        lastMessages_ = state.messages;
+        SendMessageW(hMessageCombo_, CB_RESETCONTENT, 0, 0);
+        for (const auto& m : lastMessages_) SendMessageW(hMessageCombo_, CB_ADDSTRING, 0, (LPARAM)m.c_str());
+    }
+    if (GetTickCount64() - lastPickTick_ < 1500) return;
+    int want = -1;
+    for (size_t i = 0; i < lastMessages_.size(); ++i)
+        if (_wcsicmp(lastMessages_[i].c_str(), state.selectedMessage.c_str()) == 0) { want = (int)i; break; }
+    if ((int)SendMessageW(hMessageCombo_, CB_GETCURSEL, 0, 0) != want) SendMessageW(hMessageCombo_, CB_SETCURSEL, want, 0);
+}
+
+std::wstring UIManager::GetSelectedMessage() {
+    lastPickTick_ = GetTickCount64();
+    if (!hMessageCombo_) return L"";
+    const int i = (int)SendMessageW(hMessageCombo_, CB_GETCURSEL, 0, 0);
+    if (i < 0) return L"";
+    const int n = (int)SendMessageW(hMessageCombo_, CB_GETLBTEXTLEN, i, 0);
+    if (n <= 0) return L"";
+    std::wstring s(n + 1, L'\0');
+    SendMessageW(hMessageCombo_, CB_GETLBTEXT, i, (LPARAM)&s[0]);
+    s.resize(n);
+    return s;
+}
+
+// [2026-11-22 R43] Đặt địa chỉ IP vào ô IP (từ cài đặt đã lưu). Sai định dạng thì bỏ qua.
+void UIManager::SetIPAddress(const std::wstring& ip) {
+    if (!hIpAddress_) return;
+    int a = 0, b = 0, c = 0, d = 0;
+    if (swscanf_s(ip.c_str(), L"%d.%d.%d.%d", &a, &b, &c, &d) != 4) return;
+    if (a < 0 || a > 255 || b < 0 || b > 255 || c < 0 || c > 255 || d < 0 || d > 255) return;
+    SendMessage(hIpAddress_, IPM_SETADDRESS, 0, (LPARAM)MAKEIPADDRESS(a, b, c, d));
 }
 
 // ================== Log / Messaging ==================
 // Append 1 dòng log vào MessageLogger. level dùng để tô màu/biểu tượng (info/warn/error...)
 void UIManager::AddMessage(const std::wstring& text, int level) {
+    EventLog::Append(level, text);   // [2026-11-22 R41] lưu mọi dòng hiện trên màn hình để xem lại
     if (messageLogger_) {
         messageLogger_->AddMessage(text, level);
     }
@@ -210,6 +319,8 @@ void UIManager::UpdateRemoteFieldInfo(const PrinterState& state, const std::wstr
         std::wstring t = L"Remote field: " + state.remoteFieldName;
         t += (state.remoteFieldMax > 0) ? (L" - " + std::to_wstring(state.remoteFieldMax) + L" ký tự") : L" - (chưa rõ kích thước, bấm Tải Về)";
         if (!state.messageName.empty()) t += L" | Message: " + state.messageName;
+        if (!state.selectedMessage.empty() && _wcsicmp(state.selectedMessage.c_str(), state.messageName.c_str()) != 0)
+            t += L" | sẽ tải '" + state.selectedMessage + L"' khi in";
         if (t != lastFieldInfoText_) { lastFieldInfoText_ = t; SetWindowTextW(hFieldInfo_, t.c_str()); }
     }
     if (hInputValue_ && state.remoteFieldMax != lastFieldMax_) {
@@ -338,16 +449,19 @@ HWND UIManager::CreateEdit(int x, int y, int w, int h, const wchar_t* text) {
 // Apply font thống nhất lên tất cả controls để UI đồng bộ.
 void UIManager::ApplyFontToAllControls() {
     HFONT defaultFont = FontManager::GetInstance().GetDefaultFont();    // Lấy font mặc định từ FontManager
-    HWND allControls[] = {
-        hIpAddress_, hInputValue_, hCount_, hStatusDisplay_, hPrinterState_,
-        hBtnUpload_, hCurrentCount_, hBtnDownload_, hBtnAdjust_, hAdjust_, hFieldInfo_, hWarnings_
-    };
-    // Áp dụng font cho từng điều khiển trong danh sách
-    for (HWND hCtrl : allControls) {
-        if (hCtrl && defaultFont) {
-            SendMessage(hCtrl, WM_SETFONT, (WPARAM)defaultFont, TRUE);
-        }
+    // [2026-11-22 R43] Gán font cho MỌI control con (kể cả nhãn) để co theo DPI; công tắc và biểu tượng Cài đặt dùng font riêng.
+    struct Ctx { HFONT font; HWND toggle; HWND gear; HWND log; } ctx{
+        defaultFont, toggleSwitch_ ? toggleSwitch_->GetHandle() : nullptr, hBtnSettings_,
+        messageLogger_ ? messageLogger_->GetHandle() : nullptr };
+    // Chỉ các control con TRỰC TIẾP (không đụng vào ô con bên trong control IP, tránh hỏng cách bố trí của nó)
+    for (HWND h = GetWindow(hParent_, GW_CHILD); h; h = GetWindow(h, GW_HWNDNEXT)) {
+        if (h != ctx.toggle && h != ctx.gear && h != ctx.log && ctx.font)
+            SendMessage(h, WM_SETFONT, (WPARAM)ctx.font, TRUE);
     }
+    if (ctx.toggle && FontManager::GetInstance().GetToggleFont())
+        SendMessage(ctx.toggle, WM_SETFONT, (WPARAM)FontManager::GetInstance().GetToggleFont(), TRUE);
+    if (hBtnSettings_ && FontManager::GetInstance().GetIconFont())
+        SendMessage(hBtnSettings_, WM_SETFONT, (WPARAM)FontManager::GetInstance().GetIconFont(), TRUE);
     if (messageLogger_) {
         messageLogger_->SetFont(defaultFont);
     }
@@ -365,6 +479,8 @@ void UIManager::UpdateButtonStateForPrinterState(PrinterState state) {
         EnableWindow(btnSet_.GetHandle(), FALSE);
         EnableWindow(hBtnDownload_, FALSE);
         EnableWindow(hBtnAdjust_, FALSE);
+        EnableWindow(hMessageCombo_, FALSE);
+        EnableWindow(hBtnMsgRefresh_, FALSE);
         return; // ⛔ TUYỆT ĐỐI KHÔNG CHẠY LOGIC DƯỚI
     }
     // ===== logic bình thường =====
@@ -420,4 +536,8 @@ void UIManager::UpdateButtonStateForPrinterState(PrinterState state) {
     EnableWindow(btnSet_.GetHandle(), setCount);
     EnableWindow(hBtnDownload_, download);
     EnableWindow(hBtnAdjust_, adjust);
+    // [R44] chọn bản tin: chỉ khi đã kết nối và máy không in (97D / 30D không hợp lệ khi đang in)
+    const bool pickMsg = (state.status == PrinterStateType::Idle || state.status == PrinterStateType::Ready);
+    EnableWindow(hMessageCombo_, pickMsg);
+    EnableWindow(hBtnMsgRefresh_, pickMsg);
 }

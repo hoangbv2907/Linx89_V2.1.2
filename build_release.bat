@@ -20,9 +20,10 @@ pushd "%SRC%"
 cl /nologo /std:c++17 /EHsc /W3 /O2 /MT /GL /DNDEBUG /DUNICODE /D_UNICODE /Fo"%OBJ%\\" ^
    main.cpp AppController.cpp RciClient.cpp RciWarnings.cpp PrintPersistStorage.cpp ^
    UIManager.cpp WindowManager.cpp MessageLogger.cpp ModernButton.cpp ToggleSwitch.cpp ^
+   LicenseCore.cpp LicenseDialog.cpp LogViewerDialog.cpp AppSettings.cpp SettingsDialog.cpp ^
    /Fe"%PKG%\LinxController.exe" ^
    /link /LTCG /SUBSYSTEM:WINDOWS /MANIFEST:EMBED /MANIFESTUAC:"level='asInvoker' uiAccess='false'" ^
-   user32.lib gdi32.lib comctl32.lib uxtheme.lib shell32.lib ws2_32.lib advapi32.lib ole32.lib
+   user32.lib gdi32.lib comctl32.lib uxtheme.lib shell32.lib ws2_32.lib advapi32.lib ole32.lib comdlg32.lib bcrypt.lib
 if errorlevel 1 ( popd & echo BUILD THAT BAI & exit /b 1 )
 popd
 

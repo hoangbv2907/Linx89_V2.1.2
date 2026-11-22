@@ -15,6 +15,8 @@ Gọi UIManager để cập nhật controls
 
 #include "UIManager.h"      // Quản lý controls trên cửa sổ (edit, button, status, log...)
 #include "AppController.h"  // Logic nền: worker thread, socket, poll status, enqueue requests
+#include "LicenseCore.h"     // [2026-11-22 R42]
+#include "AppSettings.h"     // [2026-11-22 R43]
 #include "MessageDef.h"     // WM_APP_* + struct message trao đổi giữa worker và UI thread
 
 class WindowManager {
@@ -28,6 +30,9 @@ public:
 
     // Tạo cửa sổ chính (CreateWindowEx) với title/size
     bool CreateMainWindow(const std::wstring& title, int width, int height);
+
+    // [2026-11-22 R43] true nếu lần chạy trước đóng chương trình khi đang phóng to
+    bool StartMaximized() const { return settings_.window.maximized; }
 
     // Getter lấy HWND để main.cpp gọi ShowWindow/UpdateWindow
     HWND GetHwnd() const { return hwnd_; }
@@ -85,6 +90,12 @@ private:
     void OnSetClicked();
     void OnDownloadClicked();   // [2026-11-18 R36] tải remote field/message/count từ máy về
     void OnAdjustClicked();
+    void OnMessageSelected();                 // [2026-11-22 R44] người dùng chọn bản tin trong ô chọn
+    void OnSettingsClicked(int tab = 0);   // [2026-11-22 R43] ⚙ Cài đặt (Kết nối / Nhật ký / Bản quyền / Giới thiệu)
+    void ApplySettings(const AppSettings& s, bool save);   // áp dụng cài đặt vào chương trình (và lưu file)
+    void SaveWindowPlacement();            // lưu vị trí / kích thước cửa sổ vào settings.json
+    void LicenseTick();         // [2026-11-22 R42] cộng giờ chạy, cảnh báo sắp hết hạn
+    void UpdateTitle();         // [2026-11-22 R42] hiện số giờ còn lại trên thanh tiêu đề
 
 private:
     // ================== Handles / Owned objects ==================
@@ -93,6 +104,9 @@ private:
 
     std::unique_ptr<UIManager> uiManager_;         // Quản lý UI controls theo vòng đời window
     std::unique_ptr<AppController> appController_; // Trung tâm logic: socket/poll/request -> post message về UI
+    AppSettings settings_;                         // [2026-11-22 R43] cài đặt người dùng (settings.json)
+    std::unique_ptr<lic::Service> license_;        // [2026-11-22 R42] bộ đếm giờ + mã gia hạn
+    int lastWarnHours_ = 1 << 30;                  // [2026-11-22 R42] mốc cảnh báo đã nhắc (giờ còn lại)
     bool destroyHandled_ = false;                  // [2026-11-16 R25] thay cho biến static trong HandleDestroy (chỉ UI thread dùng)
     void DrainPendingAppMessages();                // [2026-11-16 R25] giải phóng các WM_APP_* còn nằm trong hàng đợi khi thoát
 };

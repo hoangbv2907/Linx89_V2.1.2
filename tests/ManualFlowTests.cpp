@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <optional>
 #include <map>
+#include <algorithm>
 #include "../Linx v2.1.2/AppController.h"
 #include "../Linx v2.1.2/PrintPersistData.h"
 #include "../Linx v2.1.2/PrintPersistStorage.h"
@@ -86,6 +87,7 @@ struct LinxSim {
     bool messageLoaded = true;
     std::string knownMessage = "MSG1";
     bool hasRemoteFields = true;
+    std::vector<std::string> msgList{ "MSG1", "MSG2" };   // [R44] ban tin co tren may
     std::string fieldName = "RemoteField1";
     uint8_t fieldLen = 5;
     uint32_t counter = 0;             // Message Print Count
@@ -162,8 +164,8 @@ struct LinxSim {
             nm = nm.substr(0, nm.find('\0'));
             lastLoadName = nm;
             if (pl.size() != 18) { nak(0x16); break; }                       // 22 Number of bytes in command
-            if (nm != knownMessage) { nak(0x24); break; }                    // 36 Unknown message
-            messageLoaded = true; ack();
+            if (std::find(msgList.begin(), msgList.end(), nm) == msgList.end()) { nak(0x24); break; }   // 36 Unknown message
+            knownMessage = nm; messageLoaded = true; ack();
             break;
         }
         case 0x1D: {   // Download Remote Field Data: len16 + data
@@ -174,6 +176,27 @@ struct LinxSim {
             if (pl.size() != 2 + n) { nak(0x16); break; }
             if (n != fieldLen) { nak(0x40); break; }                         // 64 Number of remote characters
             lastField29.assign((const char*)pl.data() + 2, n); ack();
+            break;
+        }
+        case 0x61: {   // [R44] Request Data Directory: 'M' -> [dem 1 byte] + header 41 byte; KHONG hop le khi dang in -> NAK 20
+            if (printState != 2) { nak(0x14); break; }
+            if (pl.size() != 1) { nak(0x16); break; }
+            if (pl[0] != 'M') { ack({ 0 }); break; }
+            Bytes d{ (uint8_t)msgList.size() };
+            for (const auto& n : msgList) {
+                Bytes h(41, 0);
+                h[0] = 73; h[2] = 88; h[4] = 6;
+                std::copy(n.begin(), n.end(), h.begin() + 9);
+                const std::string rn = "16 QUALITY";
+                std::copy(rn.begin(), rn.end(), h.begin() + 25);
+                d.insert(d.end(), h.begin(), h.end());
+            }
+            ack(d);
+            break;
+        }
+        case 0x98: {   // [R42] Request Serial Number: 9 byte (8 ky tu + NUL)
+            Bytes d{ 'S', 'N', '1', '2', '3', '4', '5', '6', 0 };
+            ack(d);
             break;
         }
         case 0x8C: {   // Set Message Print Count: count 4 byte + ten 16 byte
@@ -502,6 +525,84 @@ int main() {
             TC("TC-NEW-04", PumpUntil([] { return !g.states.empty() && g.states.back().targetCount == 3; }, 3000));
             (void)ml;
         }
+        // ===== [R42] Serial may in (152D) + cong giay phep =====
+        {
+            // serial duoc doc sau khi ket noi
+            TC("TC-LIC-01", !g.states.empty() && g.states.back().printerSerial == L"SN123456");
+            // het han: chan cac thao tac DIEU KHIEN in, van cho dung in / dung jet / ket noi / tai thong tin
+            std::atomic<bool> allowed{ false };
+            ctrl.SetLicenseGate([&] { return allowed.load(); });
+            size_t mk = sim.CmdCount(), ml = g.logs.size();
+            ctrl.SetCount(9);
+            ctrl.StartPrinting(L"HELLO", 9);
+            ctrl.StartJet();
+            ctrl.AdjustCount(+5);
+            ctrl.UploadRemoteFieldData(L"RemoteField1", L"ABCDE");
+            PumpFor(800);
+            TC("TC-LIC-02", sim.CountSince(mk, 0x8C) == 0 && sim.CountSince(mk, 0x11) == 0 && sim.CountSince(mk, 0x0F) == 0);
+            TC("TC-LIC-02", sim.CountSince(mk, 0x9E) == 0 && sim.CountSince(mk, 0x1D) == 0);
+            TC("TC-LIC-02", CountLogSince(ml, L"gia h") >= 5);          // moi thao tac bi chan deu bao ly do
+            size_t mk2 = sim.CmdCount();
+            ctrl.StopPrinting();
+            ctrl.DownloadFromPrinter();
+            TC("TC-LIC-03", PumpUntil([&] { return sim.CountSince(mk2, 0x12) == 1 && sim.CountSince(mk2, 0x9D) >= 1; }, 3000));
+            // gia han (cong mo lai) -> thao tac chay binh thuong
+            allowed = true;
+            size_t mk3 = sim.CmdCount();
+            ctrl.SetCount(3);
+            TC("TC-LIC-04", PumpUntil([&] { return sim.CountSince(mk3, 0x8C) == 1; }, 3000));
+            ctrl.SetLicenseGate(nullptr);   // cong dang bat bien cuc bo `allowed`: go bo truoc khi het pham vi
+        }
+        // ===== [R44] Danh sach ban tin tren may (97D) + chon ban tin (30D) =====
+        {
+            TC("TC-MSG-01", PumpUntil([] { return !g.states.empty() && g.states.back().messages.size() == 2; }, 3000));
+            TC("TC-MSG-01", g.states.back().messages[0] == L"MSG1" && g.states.back().messages[1] == L"MSG2");
+            TC("TC-MSG-01", g.states.back().selectedMessage == L"MSG1");           // mac dinh = ban tin dang tai tren may
+
+            // chon MSG2: 30D, doc lai kich thuoc field (157D) + ten ban tin hien hanh (141D)
+            size_t mk = sim.CmdCount();
+            ctrl.SelectMessage(L"MSG2");
+            TC("TC-MSG-02", PumpUntil([&] { return sim.CountSince(mk, 0x1E) == 1; }, 3000));
+            TC("TC-MSG-02", PumpUntil([] { return !g.states.empty() && g.states.back().selectedMessage == L"MSG2"
+                && g.states.back().messageName == L"MSG2"; }, 3000));
+            TC("TC-MSG-02", sim.InOrderSince(mk, { 0x14, 0x1E, 0x9D, 0x8D }));
+            TC("TC-MSG-02", sim.With([](LinxSim& s) { return s.lastLoadName == "MSG2"; }));
+            ctrl.SelectMessage(L"MSG1");
+            TC("TC-MSG-02", PumpUntil([] { return !g.states.empty() && g.states.back().selectedMessage == L"MSG1"; }, 3000));
+
+            // dang in: khong doc lai danh sach, khong doi ban tin, o chon giu nguyen
+            sim.With([](LinxSim& s) { s.printState = 4; return 0; });
+            TC("TC-MSG-03", PumpUntil([] { return LastStatus(PrinterStateType::Printing); }, 3000));
+            size_t mk2 = sim.CmdCount();
+            ctrl.RefreshMessageList();
+            ctrl.SelectMessage(L"MSG2");
+            PumpFor(1200);
+            TC("TC-MSG-03", sim.CountSince(mk2, 0x61) == 0 && sim.CountSince(mk2, 0x1E) == 0);
+            TC("TC-MSG-03", g.states.back().selectedMessage == L"MSG1" && g.states.back().messages.size() == 2);
+            sim.With([](LinxSim& s) { s.printState = 2; return 0; });
+            TC("TC-MSG-03", PumpUntil([] { return LastStatus(PrinterStateType::Ready); }, 3000));
+
+            // ban tin bi xoa tren may sau khi da luu danh sach: NAK 36 -> tu lam moi danh sach
+            sim.With([](LinxSim& s) { s.msgList = { "MSG1" }; return 0; });
+            size_t mk3 = sim.CmdCount(), ml3 = g.logs.size();
+            ctrl.SelectMessage(L"MSG2");
+            TC("TC-MSG-04", PumpUntil([&] { return sim.CountSince(mk3, 0x61) == 1; }, 3000));
+            TC("TC-MSG-04", PumpUntil([] { return !g.states.empty() && g.states.back().messages.size() == 1; }, 3000));
+            TC("TC-MSG-04", g.states.back().selectedMessage == L"MSG1");
+            TC("TC-MSG-04", HasLogSince(ml3, L"30D"));
+            sim.With([](LinxSim& s) { s.msgList = { "MSG1", "MSG2" }; return 0; });
+            ctrl.RefreshMessageList();
+            TC("TC-MSG-04", PumpUntil([] { return !g.states.empty() && g.states.back().messages.size() == 2; }, 3000));
+
+            // het han giay phep: khong chon duoc ban tin (la thao tac dieu khien), nhung van lam moi danh sach
+            size_t mk4 = sim.CmdCount();
+            ctrl.SetLicenseGate([] { return false; });
+            ctrl.SelectMessage(L"MSG2");
+            ctrl.RefreshMessageList();
+            PumpFor(800);
+            TC("TC-MSG-05", sim.CountSince(mk4, 0x1E) == 0 && sim.CountSince(mk4, 0x61) == 1);
+            ctrl.SetLicenseGate(nullptr);
+        }
         // TC-SEQ-02: Stop Jet (10H) -> UI StopingJet trong luc Shutdown(2) -> Idle khi Stopped(3)
         {
             size_t ms = g.states.size(), mk = sim.CmdCount();
@@ -535,6 +636,21 @@ int main() {
             TC("TC-CON-05", PumpUntil([] { return LastConn(true); }, 8000));
             TC("TC-CON-05", PumpUntil([] { return LastStatus(PrinterStateType::Idle); }, 3000));
         }
+        // TC-SET-01 (R43): cai dat "tu ket noi lai" = tat -> mat ket noi thi KHONG tu noi lai; bat lai thi Connect binh thuong
+        {
+            size_t mc = g.conn.size();
+            int acc = fp.accepts;
+            ctrl.SetAutoReconnectAllowed(false);
+            fp.dropClient = true;
+            TC("TC-SET-01", PumpUntil([&] { return SawConnSince(mc, false); }, 4000));
+            PumpFor(4500);                                               // du lau de lan thu noi lai dau tien (2 s) xay ra neu dang bat
+            TC("TC-SET-01", fp.accepts == acc && !ctrl.IsConnected());
+            TC("TC-SET-01", LastStatus(PrinterStateType::Disconnected));
+            ctrl.SetAutoReconnectAllowed(true);
+            ctrl.Connect(L"127.0.0.1");
+            TC("TC-SET-01", PumpUntil([] { return LastConn(true); }, 6000));
+            TC("TC-SET-01", PumpUntil([] { return LastStatus(PrinterStateType::Idle); }, 3000));
+        }
         // TC-CON-03: nguoi dung ngat ket noi -> UI Disconnected; KHONG tu ket noi lai; khong gui them lenh nao
         {
             size_t mc = g.conn.size();
@@ -561,7 +677,7 @@ int main() {
         TC("TC-FRM-03", sim.With([](LinxSim& s) {
             for (uint8_t c : s.cmds) {
                 switch (c) { case 0x0F: case 0x10: case 0x11: case 0x12: case 0x14: case 0x1D: case 0x1E:
-                             case 0x8C: case 0x8D: case 0x9D: case 0x9E: break; default: return false; }
+                             case 0x8C: case 0x8D: case 0x9D: case 0x9E: case 0x98: case 0x61: break; default: return false; }
             }
             return true; }));
 

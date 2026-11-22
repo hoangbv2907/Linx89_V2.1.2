@@ -910,6 +910,55 @@ bool RciClient::SetMessagePrintCount(uint32_t count, const std::string& msgNameO
 }
 
 
+/* Function: RequestPrinterSerial(outSerial, timeoutMs)
+ * [2026-11-22 R42] Lệnh 152D (0x98): reply data = serial 9 byte (8 ký tự + NUL; máy serial dài hơn bị cắt còn 8 ký tự đầu).
+ */
+bool RciClient::RequestPrinterSerial(std::string& outSerial, int timeoutMs) {
+    outSerial.clear();
+    ParsedReply pr;
+    if (!SendAndWaitAckEx(0x98, {}, pr, timeoutMs)) return false;
+    size_t n = 0;
+    while (n < pr.data.size() && pr.data[n] != 0x00) ++n;
+    outSerial.assign((const char*)pr.data.data(), n);
+    while (!outSerial.empty() && isspace((unsigned char)outSerial.back())) outSerial.pop_back();
+    return !outSerial.empty();
+}
+
+/* Function: RequestMessageList(outNames, timeoutMs, printingBusy)
+ * [2026-11-22 R44] 97D (0x61) + 'M'. Reply data = [số bản tin] + header 41 byte mỗi bản tin
+ * (size 2, rasters 2, EHT 1, width 2, delay 2, TÊN 16, raster name 16). Manual không ghi rõ độ dài trường đếm
+ * nên đọc linh hoạt: đếm 1 byte, hoặc 2 byte, hoặc không có trường đếm (suy ra từ độ dài dữ liệu).
+ */
+bool RciClient::RequestMessageList(std::vector<std::string>& outNames, int timeoutMs, bool* printingBusy) {
+    outNames.clear();
+    if (printingBusy) *printingBusy = false;
+    std::vector<uint8_t> reply;
+    if (!SendFrame(BuildFrame(0x61, std::vector<uint8_t>{ 'M' }), reply, timeoutMs)) return false;
+    ParsedReply pr = ParseReplyAndVerify(reply, [](const std::vector<uint8_t>& v) { return RciClient::ComputeChecksum(v); });
+    if (!pr.ok) { Log(L"❌ Reply 97D không hợp lệ (sai khung/checksum)", 2); return false; }
+    if (!pr.ack) {
+        if (pr.c_status == 0x14 && printingBusy) *printingBusy = true;
+        Log(L"❌ NAK cho lệnh 0x61: C-STATUS=0x" + Hex2Local(pr.c_status) + L" " + DecodeCStatus(pr.c_status), 2);
+        return false;
+    }
+    const auto& d = pr.data;
+    const size_t kHdr = 41;
+    size_t off = 0;
+    if (d.empty()) return true;                                           // không có bản tin
+    if (d.size() == 1 + (size_t)d[0] * kHdr) off = 1;                     // đếm 1 byte
+    else if (d.size() >= 2 && d.size() == 2 + (size_t)(d[0] | (d[1] << 8)) * kHdr) off = 2;   // đếm 2 byte
+    else if (d.size() % kHdr == 0) off = 0;                               // không có trường đếm
+    else { Log(L"❌ 97D: độ dài dữ liệu " + std::to_wstring(d.size()) + L" byte không khớp bố cục header 41 byte", 2); return false; }
+    for (size_t p = off; p + kHdr <= d.size(); p += kHdr) {
+        size_t n = 0;
+        while (n < 16 && d[p + 9 + n] != 0) ++n;
+        bool ascii = n > 0;
+        for (size_t k = 0; k < n; ++k) if (d[p + 9 + k] < 0x20 || d[p + 9 + k] > 0x7E) ascii = false;
+        if (ascii) outNames.emplace_back((const char*)&d[p + 9], n);
+    }
+    return true;
+}
+
 // ============================================================
 // RciClient: Logging
 // ============================================================

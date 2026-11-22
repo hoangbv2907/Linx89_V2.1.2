@@ -113,6 +113,42 @@ int main() {
             CHECK(rx[2] == RciClient::BuildFrame(0x8C, p3));
         }
     }
+
+    // --- [R44] 97D: danh sách bản tin (đếm 1 byte / 2 byte / không đếm / rỗng / NAK 20 khi đang in / sai độ dài) ---
+    {
+        auto hdr = [](const char* nm) { Bytes h(41, 0); h[0] = 73; for (size_t i = 0; nm[i]; ++i) h[9 + i] = (uint8_t)nm[i]; return h; };
+        std::atomic<int> mode{ 0 };
+        auto prev = fp.handler;
+        fp.handler = [&, prev](uint8_t cmd, const Bytes& f) -> Reply {
+            if (cmd != 0x61) return prev(cmd, f);
+            Reply r;
+            Bytes a = hdr("MSG1"), b = hdr("JOB 2");
+            Bytes d;
+            switch (mode) {
+            case 0: d = { 2 }; d.insert(d.end(), a.begin(), a.end()); d.insert(d.end(), b.begin(), b.end()); break;
+            case 1: d = { 2, 0 }; d.insert(d.end(), a.begin(), a.end()); d.insert(d.end(), b.begin(), b.end()); break;
+            case 2: d = a; d.insert(d.end(), b.begin(), b.end()); break;
+            case 3: d = { 0 }; break;
+            case 4: r.wire = MakeReply(false, 0, 0x14, 0x61); return r;
+            case 5: d = { 2, 1, 2, 3 }; break;
+            }
+            r.wire = MakeReply(true, 0, 0, 0x61, d);
+            return r;
+        };
+        std::vector<std::string> names; bool busy = true;
+        CHECK(c.RequestMessageList(names, 2000, &busy) && !busy && names.size() == 2 && names[0] == "MSG1" && names[1] == "JOB 2");
+        mode = 1; CHECK(c.RequestMessageList(names, 2000) && names.size() == 2 && names[1] == "JOB 2");
+        mode = 2; CHECK(c.RequestMessageList(names, 2000) && names.size() == 2 && names[0] == "MSG1");
+        mode = 3; CHECK(c.RequestMessageList(names, 2000) && names.empty());
+        mode = 4; busy = false; CHECK(!c.RequestMessageList(names, 2000, &busy) && busy && names.empty());
+        mode = 5; logs.clear(); CHECK(!c.RequestMessageList(names, 2000) && Has(logs, L"97D"));
+        mode = 0;
+        fp.ClearReceived();
+        c.RequestMessageList(names, 2000);
+        auto rx = fp.Received();
+        CHECK(rx.size() == 1 && rx[0] == RciClient::BuildFrame(0x61, Bytes{ 'M' }));   // đúng khung: ESC STX 61 'M' ESC ETX chk
+        fp.handler = prev;
+    }
     // --- NAK: không còn bị coi là thành công; log có C-STATUS ---
     {
         logs.clear(); startPrintMode = 1;

@@ -98,6 +98,16 @@ public:
     // Thường dùng trước khi gọi AppController::Connect/Upload/Set.
     bool ValidateInput() const;
 
+    // [2026-11-22 R43] Co giãn: đặt lại vị trí/kích thước mọi control theo client (WM_SIZE); đổi DPI; IP từ cài đặt.
+    void Layout(int clientW, int clientH);
+    void SetDpi(int dpi);
+    int Dpi() const { return dpi_; }
+    void SetIPAddress(const std::wstring& ip);
+    // [2026-11-22 R44] Cập nhật ô chọn bản tin từ trạng thái (danh sách trên máy + bản tin đã chọn).
+    void UpdateMessageList(const PrinterState& state);
+    // Bản tin người dùng vừa chọn trong ô (rỗng nếu chưa chọn). Gọi từ xử lý CBN_SELCHANGE.
+    std::wstring GetSelectedMessage();
+
     // ================== Owner-draw handling ==================
     // Xử lý WM_DRAWITEM: vẽ các controls kiểu owner-draw (ModernButton/ToggleSwitch).
     // WindowManager sẽ gọi hàm này từ HandleDrawItem().
@@ -120,6 +130,14 @@ private:
     // Buttons (nếu có button thường)
     HWND hBtnUpload_ = nullptr;       // Handle button Upload (nếu Upload không dùng ModernButton)
     HWND hBtnDownload_ = nullptr;     // [2026-11-18 R36] nút TẢI VỀ (đọc từ máy)
+    HWND lblMessage_ = nullptr, hMessageCombo_ = nullptr, hBtnMsgRefresh_ = nullptr;   // [2026-11-22 R44] chọn bản tin trên máy
+    std::vector<std::wstring> lastMessages_;     // danh sách đang hiển thị trong ô chọn
+    ULONGLONG lastPickTick_ = 0;                 // lúc người dùng vừa chọn: tạm không đồng bộ ngược từ trạng thái máy
+    HWND hBtnSettings_ = nullptr;     // [2026-11-22 R43] biểu tượng ⚙ Cài đặt
+    HWND hTip_ = nullptr;             // tooltip của nút Cài đặt
+    HWND lblIp_ = nullptr, lblContent_ = nullptr, lblCount_ = nullptr, lblReached_ = nullptr,
+         lblAdjust_ = nullptr, lblWarn_ = nullptr, lblLog_ = nullptr;   // nhãn (để Layout di chuyển)
+    int dpi_ = 96;                    // DPI hiện tại của cửa sổ
     HWND hBtnAdjust_ = nullptr;       // [2026-11-18 R37] nút ĐIỀU CHỈNH (in bù/trừ)
     HWND hAdjust_ = nullptr;          // ô nhập độ lệch +/-
     HWND hFieldInfo_ = nullptr;       // nhãn: remote field + kích thước + message

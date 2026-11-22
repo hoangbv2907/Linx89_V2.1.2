@@ -42,7 +42,9 @@ enum class RequestType {
     RequestUploadContent,
     RequestUploadRemoteField,
     RequestAdjustCount,          // [2026-11-18 R37] in bù/trừ: count = độ lệch (+/-) cộng vào target khi máy đang chạy
-    RequestDownloadFromPrinter   // [2026-11-18 R36] đọc remote field + message + count từ máy về phần mềm
+    RequestDownloadFromPrinter,  // [2026-11-18 R36] đọc remote field + message + count từ máy về phần mềm
+    RequestRefreshMessages,      // [2026-11-22 R44] đọc danh sách bản tin trên máy (97D)
+    RequestSelectMessage         // [2026-11-22 R44] chọn + tải bản tin (30D); data = tên
 };
 
 // Trạng thái máy in tổng quát để cập nhật UI
@@ -64,6 +66,11 @@ struct PrinterState {
 	std::wstring remoteFieldName = L"RemoteField1";
 	int remoteFieldMax = 0;     // 0 = chưa biết
 	std::wstring messageName;
+	// [2026-11-22 R42] serial máy in đọc bằng lệnh 152D sau khi kết nối (rỗng = chưa biết) - dùng cho mã gia hạn
+	std::wstring printerSerial;
+	// [2026-11-22 R44] danh sách bản tin trên máy (97D) và bản tin người dùng đã chọn (sẽ được tải khi in)
+	std::vector<std::wstring> messages;
+	std::wstring selectedMessage;
 
 	// kiểm tra có đang ở trạng thái kết nối hay không 
     bool IsConnected() const {

@@ -2,6 +2,12 @@
 #include "WindowManager.h"
 #include "Logger.h"
 #include "UIManager.h"
+#include "SettingsDialog.h"
+#include "LicenseDialog.h"
+#include "UILayout.h"
+#include "EncodingUtils.h"
+#include "Logger.h"
+#include "LicensePublicKey.h"
 #include <commctrl.h>
 // ================== Lifecycle / Window creation ==================
 WindowManager::WindowManager() {}
@@ -21,11 +27,14 @@ WindowManager::~WindowManager() {
 bool WindowManager::Initialize(HINSTANCE hInstance) {
     hInstance_ = hInstance;     //lưu handle instance để dùng cho CreateWindowEx, RegisterClass
     // xác định loại common controls cần dùng.
-    INITCOMMONCONTROLSEX icex = { sizeof(icex), ICC_INTERNET_CLASSES | ICC_STANDARD_CLASSES };
+    INITCOMMONCONTROLSEX icex = { sizeof(icex), ICC_INTERNET_CLASSES | ICC_STANDARD_CLASSES | ICC_TAB_CLASSES | ICC_BAR_CLASSES };
     //khởi tạo control trên Windows (button, edit box, progress bar…).
     InitCommonControlsEx(&icex);
     // tạo UIManager để quản lý toàn bộ control.
     uiManager_ = std::make_unique<UIManager>();
+    // [2026-11-22 R43] cài đặt người dùng (vị trí cửa sổ phải biết trước khi tạo cửa sổ)
+    settings_ = AppSettings::Load(AppSettings::DefaultPath());
+    Logger::GetInstance().SetRetention(settings_.logKeepDays, settings_.logMaxMB);
     Logger::GetInstance().Write(L"WindowManager initialized");
     return true;
 }
@@ -42,17 +51,32 @@ bool WindowManager::CreateMainWindow(const std::wstring& title, int width, int h
     //đăng ký class, nếu fail → log và return false.
     if (!RegisterClass(&wc)) return false;
     //tạo cửa sổ chính với CreateWindowEx//Vị trí gọi: main.cpp → sau đó ShowWindow + UpdateWindow.
-    DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
-    RECT rc{ 0, 0, width, height };
-    AdjustWindowRectEx(&rc, style, FALSE, 0);
+    // [2026-11-22 R43] Cửa sổ co giãn được: viền kéo + nút phóng to; kích thước/vị trí lần trước được khôi phục.
+    DWORD style = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
+    const UINT sysDpi = GetDpiForSystem();
+    RECT rc{ 0, 0, MulDiv(width, sysDpi, 96), MulDiv(height, sysDpi, 96) };
+    AdjustWindowRectExForDpi(&rc, style, FALSE, 0, sysDpi);
 
     int winW = rc.right - rc.left;
     int winH = rc.bottom - rc.top;
+    int winX = CW_USEDEFAULT, winY = CW_USEDEFAULT;
+    if (settings_.window.w > 0 && settings_.window.h > 0) {
+        const RECT saved{ settings_.window.x, settings_.window.y, settings_.window.x + settings_.window.w, settings_.window.y + settings_.window.h };
+        MONITORINFO mi{ sizeof(mi) };
+        HMONITOR mon = MonitorFromRect(&saved, MONITOR_DEFAULTTONEAREST);
+        if (GetMonitorInfoW(mon, &mi)) {
+            RECT minR{ 0, 0, MulDiv(kMinClientW96, sysDpi, 96), MulDiv(kMinClientH96, sysDpi, 96) };
+            AdjustWindowRectExForDpi(&minR, style, FALSE, 0, sysDpi);
+            const RECT r = ClampWindowToWorkArea(saved.left, saved.top, settings_.window.w, settings_.window.h, mi.rcWork,
+                minR.right - minR.left, minR.bottom - minR.top);   // đưa về trong màn hình nếu màn hình đã đổi
+            winX = r.left; winY = r.top; winW = r.right - r.left; winH = r.bottom - r.top;
+        }
+    }
 
     hwnd_ = CreateWindowEx(
         0, wc.lpszClassName, title.c_str(),
         style,
-        CW_USEDEFAULT, CW_USEDEFAULT, winW, winH,
+        winX, winY, winW, winH,
         nullptr, nullptr, hInstance_, this
     );
     if (!hwnd_) {
@@ -70,6 +94,10 @@ LRESULT WindowManager::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
         return 0;
     case WM_COMMAND: {  //xử lý lệnh từ button, menu, v.v.
         int id = LOWORD(wParam);
+        if (id == IDC_MSG_COMBO) {        // [2026-11-22 R44] ô chọn bản tin: chỉ quan tâm khi chọn xong
+            if (HIWORD(wParam) == CBN_SELCHANGE) OnMessageSelected();
+            return 0;
+        }
         HandleCommand(id);
         return 0;
     }
@@ -111,6 +139,31 @@ LRESULT WindowManager::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
         delete btnMsg;
         return 0;
     }
+    case WM_GETMINMAXINFO: {       // [2026-11-22 R43] kích thước tối thiểu: client 520x560 (đơn vị 96 DPI)
+        auto* mm = reinterpret_cast<MINMAXINFO*>(lParam);
+        const UINT dpi = GetDpiForWindow(hwnd_);
+        RECT rc{ 0, 0, MulDiv(kMinClientW96, dpi, 96), MulDiv(kMinClientH96, dpi, 96) };
+        AdjustWindowRectExForDpi(&rc, (DWORD)GetWindowLongPtr(hwnd_, GWL_STYLE), FALSE, (DWORD)GetWindowLongPtr(hwnd_, GWL_EXSTYLE), dpi);
+        mm->ptMinTrackSize.x = rc.right - rc.left;
+        mm->ptMinTrackSize.y = rc.bottom - rc.top;
+        return 0;
+    }
+    case WM_SIZE:                  // [2026-11-22 R43] đổi kích thước -> bố trí lại mọi control
+        if (wParam != SIZE_MINIMIZED && uiManager_) uiManager_->Layout(LOWORD(lParam), HIWORD(lParam));
+        return 0;
+    case WM_DPICHANGED: {          // [2026-11-22 R43] kéo sang màn hình khác tỉ lệ: đổi font + kích thước
+        if (uiManager_) uiManager_->SetDpi((int)HIWORD(wParam));
+        const RECT* r = reinterpret_cast<const RECT*>(lParam);
+        SetWindowPos(hwnd_, nullptr, r->left, r->top, r->right - r->left, r->bottom - r->top, SWP_NOZORDER | SWP_NOACTIVATE);
+        return 0;
+    }
+    case WM_TIMER:                 // [2026-11-22 R42] 1 = mỗi phút cộng giờ; 2 = kiểm tra một lần lúc khởi động
+        if (wParam == 1) LicenseTick();
+        else if (wParam == 2) {
+            KillTimer(hwnd_, 2);
+            if (license_ && license_->Expired()) OnSettingsClicked(SettingsDialog::License);   // hết hạn: mở sẵn thẻ Bản quyền
+        }
+        return 0;
     case WM_DESTROY:            //xử lý dọn dẹp khi cửa sổ bị đóng
         HandleDestroy();
         return 0;
@@ -153,6 +206,14 @@ void WindowManager::HandleCreate() {
         Logger::GetInstance().Write(L"HandleCreate: Loading backup data");
         appController_->LoadPrintDataOnStart();
         appController_->SavePrintDataOnExit();
+        ApplySettings(settings_, /*save=*/false);   // [2026-11-22 R43] IP, tên bản tin, tự kết nối lại, thời gian giữ nhật ký
+        // [2026-11-22 R42] Giới hạn thời gian sử dụng: nạp bộ đếm giờ + đặt cổng chặn điều khiển khi hết hạn
+        license_ = std::make_unique<lic::Service>(lic::Bytes(kLicensePublicKey, kLicensePublicKey + sizeof(kLicensePublicKey)));
+        license_->Load();
+        appController_->SetLicenseGate([this]() { return license_ && !license_->Expired(); });
+        UpdateTitle();
+        SetTimer(hwnd_, 1, 60000, nullptr);
+        SetTimer(hwnd_, 2, 1500, nullptr);
         Logger::GetInstance().Write(L"HandleCreate: Start worker thread");
         appController_->StartWorkerThread();
     }
@@ -188,6 +249,12 @@ void WindowManager::HandleCommand(int id) {
     case IDC_BTN_ADJUST:    // [2026-11-18 R37]
         OnAdjustClicked();
         break;
+    case IDC_BTN_MSGREFRESH:  // [2026-11-22 R44] làm mới danh sách bản tin
+        if (appController_) appController_->RefreshMessageList();
+        break;
+    case IDC_BTN_SETTINGS:  // [2026-11-22 R43] biểu tượng ⚙
+        OnSettingsClicked();
+        break;
     default:
         break;
     }
@@ -204,6 +271,9 @@ void WindowManager::HandleDrawItem(LPDRAWITEMSTRUCT dis) {
 void WindowManager::HandleDestroy() {
     if (destroyHandled_) return;   // [2026-11-16 R25] member thay cho static
     destroyHandled_ = true;
+    KillTimer(hwnd_, 1);
+    SaveWindowPlacement();            // [2026-11-22 R43]
+    if (license_) license_->Save();   // [2026-11-22 R42] lưu số giờ đã dùng
     // ✅ DỪNG CONTROLLER TRƯỚC KHI POST QUIT
     if (appController_) {
         appController_->StopWorkerThread(1000);
@@ -243,7 +313,8 @@ void WindowManager::HandlePrinterUpdate(PrinterStateMessage* msg) {
         uiManager_->UpdatePrinterStatus(msg->statusText);   // Cập nhật text trạng thái máy in
         uiManager_->UpdateJobFields(msg->jobContent, msg->targetCount, msg->printedCount);
         uiManager_->UpdateWarnings(msg->state.warnings);                 // [2026-11-18 R35]
-        uiManager_->UpdateRemoteFieldInfo(msg->state, msg->state.messageName);   // [2026-11-18 R33/R36]
+        uiManager_->UpdateRemoteFieldInfo(msg->state, msg->state.messageName);
+        uiManager_->UpdateMessageList(msg->state);          // [2026-11-22 R44]   // [2026-11-18 R33/R36]
         uiManager_->UpdatePrinterUIState(msg->state);       // Cập nhật trạng thái UI dựa trên trạng thái máy in
         uiManager_->UpdateButtonStates(msg->state);
     }
@@ -279,6 +350,10 @@ void WindowManager::OnToggleClicked() {
             return;
         }
         appController_->SetLastIp(ip);
+        {   // [2026-11-22 R43] nhớ IP đã dùng cho lần mở sau
+            const std::string ipA = WideToUtf8(ip);
+            if (ipA != settings_.ip) { settings_.ip = ipA; settings_.Save(AppSettings::DefaultPath()); }
+        }
         appController_->DisableAutoReconnect();
         appController_->Connect(ip);
     }
@@ -366,6 +441,86 @@ void WindowManager::OnDownloadClicked() {
     uiManager_->ResetJobFieldCache();
     appController_->DownloadFromPrinter();
     uiManager_->AddMessage(L"📥 Đang đọc remote field / message / count từ máy in...", 3);
+}
+
+// [2026-11-22 R44] Chọn bản tin: tải lên máy (30D) và nhớ lựa chọn cho lần mở sau
+void WindowManager::OnMessageSelected() {
+    if (!appController_ || !uiManager_) return;
+    const std::wstring name = uiManager_->GetSelectedMessage();
+    if (name.empty()) return;
+    appController_->SelectMessage(name);
+    const std::string a = WideToUtf8(name);
+    if (a != settings_.printMessageName) { settings_.printMessageName = a; settings_.Sanitize(); settings_.Save(AppSettings::DefaultPath()); }
+}
+
+// [2026-11-22 R43] ⚙ Cài đặt: một cửa sổ có thẻ Kết nối / Nhật ký / Bản quyền (gia hạn) / Giới thiệu.
+// Hết hạn vẫn mở được (để nhập mã gia hạn).
+void WindowManager::OnSettingsClicked(int tab) {
+    if (!license_ || !appController_ || !uiManager_) return;
+    SettingsContext ctx;
+    ctx.settings = settings_;
+    ctx.license = license_.get();
+    ctx.printerSerial = appController_->GetCurrentState().printerSerial;
+    ctx.log = [this](const std::wstring& m, int lv) { uiManager_->AddMessage(m, lv); };
+    ctx.apply = [this](const AppSettings& s) { ApplySettings(s, /*save=*/true); };
+    SettingsDialog::Run(hwnd_, ctx, tab);
+    lastWarnHours_ = 1 << 30;     // sau khi gia hạn: nhắc lại từ đầu
+    UpdateTitle();
+}
+
+// Áp dụng cài đặt: tên bản tin khi in, tự kết nối lại, thời gian giữ nhật ký, IP mặc định.
+void WindowManager::ApplySettings(const AppSettings& in, bool save) {
+    AppSettings s = in;
+    s.Sanitize();
+    settings_ = s;
+    if (appController_) {
+        appController_->SetPrintMessageName(s.printMessageName);
+        appController_->SetAutoReconnectAllowed(s.autoReconnect);
+    }
+    Logger::GetInstance().SetRetention(s.logKeepDays, s.logMaxMB);
+    if (uiManager_ && !appController_->IsConnected()) uiManager_->SetIPAddress(Utf8ToWide(s.ip));
+    if (save) {
+        const bool ok = settings_.Save(AppSettings::DefaultPath());
+        if (uiManager_) uiManager_->AddMessage(ok ? L"💾 Đã lưu cài đặt" : L"⚠️ Không lưu được file cài đặt", ok ? 4 : 1);
+    }
+}
+
+// Lưu vị trí + kích thước cửa sổ (trạng thái bình thường, kể cả khi đang phóng to) để lần sau mở lại đúng chỗ.
+void WindowManager::SaveWindowPlacement() {
+    WINDOWPLACEMENT wp{ sizeof(wp) };
+    if (!hwnd_ || !GetWindowPlacement(hwnd_, &wp)) return;
+    settings_.window.x = wp.rcNormalPosition.left;
+    settings_.window.y = wp.rcNormalPosition.top;
+    settings_.window.w = wp.rcNormalPosition.right - wp.rcNormalPosition.left;
+    settings_.window.h = wp.rcNormalPosition.bottom - wp.rcNormalPosition.top;
+    settings_.window.maximized = (wp.showCmd == SW_SHOWMAXIMIZED);
+    settings_.Save(AppSettings::DefaultPath());
+}
+
+// [2026-11-22 R44] Tiêu đề cố định: thời gian sử dụng CHỈ hiển thị trong ⚙ Cài đặt › Bản quyền.
+void WindowManager::UpdateTitle() {
+    SetWindowTextW(hwnd_, L"Linx Controller - BY BUI_VAN_HOANG");
+}
+
+// Mỗi phút: cộng giờ chạy, nhắc khi còn ≤100 / ≤24 / ≤1 giờ và khi hết hạn
+void WindowManager::LicenseTick() {
+    if (!license_ || !uiManager_) return;
+    license_->Tick();
+    UpdateTitle();
+    const int64_t rem = license_->RemainingSeconds();
+    const int hours = rem <= 0 ? 0 : (int)(rem / 3600);
+    const int marks[] = { 100, 24, 1 };
+    for (int mk : marks) {
+        if (hours <= mk && lastWarnHours_ > mk && rem > 0) {
+            uiManager_->AddMessage(L"⚠️ Sắp hết thời gian sử dụng - xem ⚙ Cài đặt › Bản quyền để biết chi tiết và gia hạn", 1);
+            lastWarnHours_ = mk;
+            break;
+        }
+    }
+    if (rem <= 0 && lastWarnHours_ > 0) {
+        lastWarnHours_ = 0;
+        uiManager_->AddMessage(L"⛔ Đã hết thời gian sử dụng - các thao tác điều khiển in bị khoá - vào ⚙ Cài đặt › Bản quyền để gia hạn", 2);
+    }
 }
 
 // [2026-11-18 R37] In bù (+N) / trừ (-N) khi máy vẫn đang hoạt động.

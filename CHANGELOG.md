@@ -3,6 +3,23 @@
 Mỗi thay đổi có mã `Rnn` và ngày sửa. Trong code, tìm theo chuỗi `[2026-11-13 Rnn]` để truy vết.
 Tài liệu tham chiếu: *Linx RCI Reference Manual MP65969-7* (CJ400 / 8800 / 8900 / Linx 10).
 
+## 2026-11-22 — lô 5: giao diện co giãn, gộp chức năng vào ⚙ Cài đặt
+
+| Mã | Nội dung | File chính |
+|---|---|---|
+| R43 | Cửa sổ co giãn (viền kéo, phóng to, tối thiểu 520×560; bố cục tính trong `UILayout.h`, ô nhật ký chiếm phần chiều cao còn lại); hỗ trợ DPI cao (per-monitor v2, `WM_DPICHANGED`); nhớ vị trí/kích thước. Gộp Xem nhật ký / Gia hạn / Kết nối vào một biểu tượng ⚙ → cửa sổ Cài đặt có thẻ (`SettingsDialog`). Cài đặt lưu `settings.json` (`AppSettings`): IP mặc định, tự kết nối lại (`AppController::SetAutoReconnectAllowed`), tên bản tin khi in (trước đây chưa có ô nhập), thời gian giữ nhật ký (`Logger::SetRetention`) | `UILayout.h`, `AppSettings.*`, `SettingsDialog.*`, `UIManager.*`, `WindowManager.*`, `FontManager.h`, `main.cpp` |
+
+Test mới: `UiTests` (8456 kiểm tra: bố cục ở 4 mức DPI × 6 kích thước không tràn / không chồng; co giãn đúng; cài đặt đọc/ghi/làm sạch; kẹp cửa sổ vào màn hình), TC-SET-01. Đã chụp ảnh màn hình thật để kiểm tra (mặc định, phóng to, các thẻ Cài đặt).
+
+## 2026-11-22 — lô 4: lưu nhật ký, giới hạn thời gian sử dụng
+
+| Mã | Nội dung | File chính |
+|---|---|---|
+| R41 | Nhật ký: file theo ngày trong `%LOCALAPPDATA%\LinxController\logs`, tự dọn (90 ngày / 200 MB); nhật ký sự kiện `events_YYYY-MM.csv`; nút "Xem nhật ký" (lọc tháng/ngày/mức độ/từ khoá, xuất CSV, mở thư mục) | `Logger.h`, `EventLog.h`, `AppPaths.h`, `LogViewerDialog.*`, `UIManager.cpp` |
+| R42 | Giới hạn 6000 giờ chạy + mã gia hạn ECDSA P-256 gắn mã máy tính và serial máy in (lệnh 152D); đếm giờ lưu 2 nơi có HMAC; hết hạn thì khoá điều khiển in (`AppController::SetLicenseGate`); cửa sổ "Gia hạn"; công cụ `tools/LicenseKeygen.cpp` | `LicenseCore.*`, `LicenseDialog.*`, `LicensePublicKey.h`, `RciClient.*`, `AppController.*`, `WindowManager.cpp` |
+
+Test mới: `LogTests` (33), `LicenseTests` (47), TC-LIC-01..04. Bộ test ghi vào `%TEMP%`, không đụng nhật ký / giấy phép thật. **Chưa thử với máy in thật** (lệnh 152D chỉ kiểm chứng với máy in giả theo manual 2.2.45).
+
 ## 2026-11-18 — lô sửa 3 (kết quả thử máy in thật)
 
 | Mã | Nội dung | File chính |

@@ -60,6 +60,11 @@ escape `ESC ESC`, reply chia nhỏ, rác trước reply, sai Command ID: xem `Rc
 | TC-NEW-01 | Điều kiện bắt đầu in (R34) | Hết mực (P-STATUS 7), hết dung môi (10), warning nghiêm trọng (cover off) | `StartPrinting` khi máy có từng lỗi đó | Log nêu lý do; không gửi 11H | PASS |
 | TC-NEW-02 | Cảnh báo của máy trên phần mềm (R35) | Warning mask 0x14 (bit 3 Ink Low) | Bật rồi tắt bit | `PrinterState.warnings` có rồi rỗng (UI hiện ở ô CẢNH BÁO) | PASS |
 | TC-NEW-03 | Tải về từ máy (R36) | 157D + 141D | `DownloadFromPrinter` | state có tên field, 5 ký tự, message MSG1 | PASS |
+| TC-SET-01 | Cài đặt "tự kết nối lại" (R43) | (phần mềm) | Tắt tuỳ chọn rồi ngắt kết nối từ phía máy; sau đó bật lại + Connect | Không tự nối lại; Connect thủ công thành công | PASS |
+| TC-LIC-01 | Serial máy in (R42) | Lệnh 152D: 9 byte | Kết nối | `printerSerial` = SN123456 | PASS |
+| TC-LIC-02 | Hết hạn chặn điều khiển (R42) | (phần mềm) | Cổng giấy phép = hết hạn; SET / in / jet / in bù / gửi field | Không lệnh nào tới máy; mỗi thao tác báo lý do | PASS |
+| TC-LIC-03 | Hết hạn vẫn dừng được (R42) | (phần mềm) | Stop Print, tải thông tin | 12H và 9DH vẫn gửi | PASS |
+| TC-LIC-04 | Gia hạn mở lại (R42) | (phần mềm) | Cổng mở lại; SET | 8CH được gửi | PASS |
 | TC-NEW-04 | In bù/trừ khi máy đang chạy (R37) | (chỉ phần mềm) | +5, -20, -5 với target 3 | 8; từ chối vì < số đã in; về 3 | PASS |
 
 ## Phân tích 2 ca FAIL cũ (TC-PRD-04/05) — ĐÃ SỬA 2026-11-18 (R38)

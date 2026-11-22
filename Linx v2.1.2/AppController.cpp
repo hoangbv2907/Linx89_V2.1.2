@@ -272,6 +272,7 @@ void AppController::Disconnect() {
 }
 
 void AppController::UploadContent(const std::wstring& content, int count) {
+    if (LicenseBlocked()) return;   // [2026-11-22 R42]
     if (!ValidatePrintContent(content)) {
         SendLogMessage(L"Nội dung in không hợp lệ", 2);
         return;
@@ -284,12 +285,14 @@ void AppController::UploadContent(const std::wstring& content, int count) {
 }
 
 void AppController::SetCount(int count) {
+    if (LicenseBlocked()) return;   // [2026-11-22 R42]
     Request req{ RequestType::RequestSetCount };
     req.count = count;
     requestQueue_.Push(req);
 }
 
 void AppController::StartJet() {
+    if (LicenseBlocked()) return;   // [2026-11-22 R42]
     Request req{ RequestType::RequestStartJet };
     requestQueue_.Push(req);
 }
@@ -300,6 +303,7 @@ void AppController::StopJet() {
 }
 
 void AppController::StartPrinting(const std::wstring& content, int count) {
+    if (LicenseBlocked()) return;   // [2026-11-22 R42]
     if (!ValidatePrintContent(content)) {
         SendLogMessage(L"Nội dung in không hợp lệ", 2);
         return;
@@ -322,6 +326,7 @@ void AppController::StopPrinting() {
 
 void AppController::UploadRemoteFieldData(const std::wstring& fieldName, const std::wstring& value)
 {
+    if (LicenseBlocked()) return;   // [2026-11-22 R42]
     Request req{ RequestType::RequestUploadRemoteField };
     req.fieldName = fieldName;
     req.data = value;              // tận dụng sẵn field data (wstring)
@@ -333,10 +338,32 @@ void AppController::DownloadFromPrinter() {
 }
 
 void AppController::AdjustCount(int delta) {
+    if (LicenseBlocked()) return;   // [2026-11-22 R42]
     Request req{ RequestType::RequestAdjustCount };
     req.count = delta;
     requestQueue_.Push(req);
 }
+// [2026-11-22 R44] Danh sách bản tin / chọn bản tin
+void AppController::RefreshMessageList() {
+    Request req{ RequestType::RequestRefreshMessages };
+    requestQueue_.Push(req);
+}
+
+void AppController::SelectMessage(const std::wstring& name) {
+    if (LicenseBlocked()) return;
+    if (name.empty()) return;
+    Request req{ RequestType::RequestSelectMessage };
+    req.data = name;
+    requestQueue_.Push(req);
+}
+
+// [2026-11-22 R42] Hết thời gian sử dụng -> không cho điều khiển in.
+bool AppController::LicenseBlocked() {
+    if (!licenseGate_ || licenseGate_()) return false;
+    SendLogMessage(L"⛔ Đã hết thời gian sử dụng - vào ⚙ Cài đặt › Bản quyền để nhập mã gia hạn và tiếp tục điều khiển máy in", 2);
+    return true;
+}
+
 // ================== Validation / Policy ==================
 bool AppController::ValidatePrintContent(const std::wstring& content) {
     return !content.empty() && content.length() <= 1000;
@@ -491,6 +518,7 @@ void AppController::OnConnectionLost() {
     st.printing = false;
     st.jetTransitioning = false;
     st.warnings.clear();
+    st.printerSerial.clear();   // [2026-11-22 R42]
     printerModel_->SetState(st);
     printerModel_->SetStatusText(st.statusText);
 
@@ -535,6 +563,12 @@ void AppController::HandleRequest(const Request& request) {
             break;
         case RequestType::RequestAdjustCount:
             HandleAdjustCountRequest(request);
+            break;
+        case RequestType::RequestRefreshMessages:
+            HandleRefreshMessagesRequest();
+            break;
+        case RequestType::RequestSelectMessage:
+            HandleSelectMessageRequest(request);
             break;
 
         default:
@@ -1025,6 +1059,89 @@ void AppController::StoreRemoteFieldInfo(const std::string& name, int maxChars) 
     printerModel_->SetState(st);
 }
 
+// [2026-11-22 R44] ----- Danh sách bản tin trên máy (97D) + chọn bản tin (30D) -----
+// Danh sách chỉ đọc được khi máy KHÔNG in (manual: 97D không hợp lệ khi đang in) -> đang in thì dùng danh sách đã lưu.
+void AppController::HandleRefreshMessagesRequest() {
+    if (!rciClient_ || !rciClient_->IsConnected()) return;
+    PrinterStatus s = rciClient_->RequestStatusEx();
+    if (s.valid && s.printing) {
+        SendLogMessage(L"⏸️ Máy đang in - không đọc lại được danh sách bản tin (dùng danh sách đã lưu)", 1);
+        return;
+    }
+    std::vector<std::string> names;
+    bool busy = false;
+    if (!rciClient_->RequestMessageList(names, 3000, &busy)) {
+        if (busy) SendLogMessage(L"⏸️ Máy đang in - không đọc lại được danh sách bản tin", 1);
+        else SendLogMessage(L"❌ Không đọc được danh sách bản tin từ máy (97D) - có thể nhập tên bản tin ở ⚙ Cài đặt", 2);
+        return;
+    }
+    std::vector<std::wstring> list;
+    for (const auto& n : names) list.push_back(Utf8ToWide(n));
+    std::sort(list.begin(), list.end(), [](const std::wstring& a, const std::wstring& b) { return _wcsicmp(a.c_str(), b.c_str()) < 0; });
+    auto has = [&](const std::wstring& n) {
+        for (const auto& x : list) if (_wcsicmp(x.c_str(), n.c_str()) == 0) return true;
+        return false;
+    };
+    PrinterState st = printerModel_->GetState();
+    if (st.messageName.empty()) {   // chưa biết bản tin đang tải trên máy: hỏi bằng 141D (tên toàn 0 = hiện hành)
+        uint32_t c = 0; std::string cur;
+        if (rciClient_->RequestMessagePrintCount(c, cur, "", kPollTimeoutMs) && !cur.empty()) st.messageName = Utf8ToWide(cur);
+    }
+    std::string sel;
+    { std::lock_guard<std::mutex> lock(nameMutex_); sel = printMessageName_; }
+    std::wstring selW = Utf8ToWide(sel);
+    if (!list.empty() && !selW.empty() && !has(selW)) {
+        SendLogMessage(L"⚠️ Bản tin đã chọn trước đó '" + selW + L"' không còn trên máy", 1);
+        selW.clear();
+        SetPrintMessageName("");
+    }
+    if (selW.empty() && has(st.messageName)) selW = st.messageName;   // mặc định: bản tin đang tải trên máy
+    st.messages = list;
+    st.selectedMessage = selW;
+    printerModel_->SetState(st);
+    SendLogMessage(L"📋 Có " + std::to_wstring(list.size()) + L" bản tin trên máy", 0);
+}
+
+void AppController::HandleSelectMessageRequest(const Request& req) {
+    if (!rciClient_ || !rciClient_->IsConnected()) {
+        SendLogMessage(L"❌ Chưa kết nối máy in", 2);
+        return;
+    }
+    const std::string name = WideToUtf8(req.data);
+    PrinterStatus s = rciClient_->RequestStatusEx();
+    if (!s.valid) { SendLogMessage(L"❌ Không đọc được trạng thái máy in - huỷ đổi bản tin", 2); return; }
+    if (s.printing) {
+        SendLogMessage(L"⛔ Máy đang in - không đổi được bản tin", 2);
+        PrinterState st = printerModel_->GetState();       // trả ô chọn về bản tin cũ
+        std::string cur;
+        { std::lock_guard<std::mutex> lock(nameMutex_); cur = printMessageName_; }
+        st.selectedMessage = Utf8ToWide(cur);
+        printerModel_->SetState(st);
+        return;
+    }
+    if (!rciClient_->LoadMessage(name, 0)) {
+        SendLogMessage(L"❌ Không tải được bản tin '" + req.data + L"' (30D) - làm mới danh sách bản tin", 2);
+        HandleRefreshMessagesRequest();
+        return;
+    }
+    SetPrintMessageName(name);
+    {
+        PrinterState st = printerModel_->GetState();
+        st.selectedMessage = req.data;
+        printerModel_->SetState(st);
+    }
+    HandleDownloadFromPrinterRequest();                    // đọc lại kích thước field (157D) + tên bản tin hiện hành (141D)
+    PrinterState st = printerModel_->GetState();
+    if (_wcsicmp(st.messageName.c_str(), req.data.c_str()) != 0 && !st.messageName.empty()) {
+        SendLogMessage(L"⚠️ Máy báo bản tin hiện hành là '" + st.messageName + L"', khác bản tin đã chọn '" + req.data + L"'", 1);
+    }
+    else {
+        SendLogMessage(L"✅ Đã chọn bản tin '" + req.data + L"'" +
+            (st.remoteFieldMax > 0 ? L" - field " + st.remoteFieldName + L": " + std::to_wstring(st.remoteFieldMax) + L" ký tự" : L""), 4);
+    }
+    lastCommandTime_ = std::chrono::steady_clock::now();
+}
+
 // [2026-11-18 R36] Tải thông tin từ máy in về phần mềm: field (tên + số ký tự), message, count.
 // RCI KHÔNG có lệnh đọc giá trị hiện tại của field -> nội dung lấy từ bản lưu cục bộ (model), bỏ khoảng trắng đệm.
 void AppController::HandleDownloadFromPrinterRequest() {
@@ -1223,6 +1340,22 @@ void AppController::HandleConnectRequest(const Request& req) {
     else {
         SendStateUpdate();
     }
+    // [2026-11-22 R42] Serial máy in (152D) - dùng để gắn mã gia hạn với máy in
+    if (rciClient_ && rciClient_->IsConnected()) {
+        std::string sn;
+        PrinterState ps = printerModel_->GetState();
+        if (rciClient_->RequestPrinterSerial(sn)) {
+            ps.printerSerial = Utf8ToWide(sn);
+            SendLogMessage(L"🏷️ Serial máy in: " + ps.printerSerial, 0);
+        }
+        else {
+            ps.printerSerial.clear();
+            SendLogMessage(L"⚠️ Không đọc được serial máy in (152D) - chưa thể nhập mã gia hạn", 1);
+        }
+        printerModel_->SetState(ps);
+        SendStateUpdate();
+        HandleRefreshMessagesRequest();   // [2026-11-22 R44] danh sách bản tin để người dùng chọn
+    }
     EnableAutoReconnect();
     lastCommandTime_ = std::chrono::steady_clock::now();
 }
@@ -1244,6 +1377,7 @@ void AppController::HandleDisconnectRequest() {
     st.status = PrinterStateType::Disconnected;
     st.statusText = L"Ngắt kết nối";
     st.warnings.clear();
+    st.printerSerial.clear();   // [2026-11-22 R42]
     st.jetOn = false;
     st.printing = false;
 

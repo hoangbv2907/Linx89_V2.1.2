@@ -12,6 +12,8 @@ static Logger& g_loggerKeepAlive = Logger::GetInstance();
 static WindowManager g_windowManager;  //instance toàn cục để quản lý cả vòng đời UI
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) { //điểm bắt đầu chương trình Win32
+    // [2026-11-22 R43] Hỗ trợ DPI cao / nhiều màn hình khác tỉ lệ (Windows 10 1703+)
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     // Initialize logger
     Logger::GetInstance().Write(L"Linx Controller starting...");
     // Khởi tạo WindowManager
@@ -20,12 +22,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         return -1;
     }
     // Tạo cửa sổ chính
-    if (!g_windowManager.CreateMainWindow(L"Linx Controller - BY BUI_VAN_HOANG", 520, 610)) {  //Gọi hàm trong WindowManager để tạo HWND.
+    if (!g_windowManager.CreateMainWindow(L"Linx Controller - BY BUI_VAN_HOANG", 520, 640)) {  //Gọi hàm trong WindowManager để tạo HWND.
         Logger::GetInstance().Write(L"Failed to create main window", 2);
         return -1;
     }
     // Show và refresh cửa sổ
-    ShowWindow(g_windowManager.GetHwnd(), nCmdShow);    //hiển thị window theo style (normal, minimized…).
+    ShowWindow(g_windowManager.GetHwnd(), g_windowManager.StartMaximized() ? SW_SHOWMAXIMIZED : nCmdShow);    //hiển thị window theo style (normal, minimized…).
     UpdateWindow(g_windowManager.GetHwnd());            //yêu cầu Windows vẽ ngay nội dung.
     Logger::GetInstance().Write(L"Application started successfully");
     // vòng lặp chính

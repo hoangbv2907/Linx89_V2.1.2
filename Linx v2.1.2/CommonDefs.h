@@ -19,6 +19,9 @@ dùng để khai báo:
 #define IDC_CURRENT_COUNT 1008
 #define IDC_BTN_DOWNLOAD 1009   // [2026-11-18 R36] tải thông tin từ máy in về
 #define IDC_BTN_ADJUST   1010
+#define IDC_BTN_SETTINGS 1013   // [2026-11-22 R43] biểu tượng Cài đặt (gộp Kết nối / Nhật ký / Bản quyền / Giới thiệu)
+#define IDC_MSG_COMBO    1014   // [2026-11-22 R44] ô chọn bản tin
+#define IDC_BTN_MSGREFRESH 1015 // [2026-11-22 R44] làm mới danh sách bản tin
 // Custom messages for thread-safe UI updates
 #define WM_APP_LOG             (WM_APP + 1)
 #define WM_APP_PRINTER_UPDATE  (WM_APP + 2) 

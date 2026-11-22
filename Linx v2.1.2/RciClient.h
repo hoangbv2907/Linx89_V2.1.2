@@ -131,6 +131,13 @@ public:
     // Layout theo bảng trong tài liệu: [số field][ {marker, name[32], maxChars, autoLoad, reserved[2]} x n ].
     bool RequestRemoteFields(std::vector<RemoteFieldInfo>& out, int timeoutMs = 3000);
 
+    // [2026-11-22 R42] Request Serial Number (152D / 0x98): 9 byte, kết thúc NUL. false nếu máy NAK / không hỗ trợ.
+    bool RequestPrinterSerial(std::string& outSerial, int timeoutMs = 2000);
+
+    // [2026-11-22 R44] Request Data Directory (97D / 0x61) loại 'M': danh sách bản tin trên máy (header 41 byte, tên ở byte 10..25).
+    // Manual: lệnh KHÔNG hợp lệ khi đang in -> máy NAK 20 (Print not idle): khi đó *printingBusy = true và trả false.
+    bool RequestMessageList(std::vector<std::string>& outNames, int timeoutMs = 3000, bool* printingBusy = nullptr);
+
     // Request message print count (RCI 0x8D):
     // outCount: số lượng đã in (hoặc target/printed tuỳ manual)
     // outMsgName: tên message trả về nếu printer trả kèm
