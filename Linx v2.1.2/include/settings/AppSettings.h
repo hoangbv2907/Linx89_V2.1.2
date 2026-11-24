@@ -12,7 +12,6 @@ struct AppSettings {
     bool autoReconnect = true;             // tự kết nối lại khi mất kết nối
     std::string printMessageName;          // tên bản tin trên máy dùng khi in; rỗng = bản tin đang chọn trên máy
     int logKeepDays = 90;                  // giữ file nhật ký (ngày)
-    int logMaxMB = 200;                    // tổng dung lượng file nhật ký tối đa (MB)
 
     struct Window {
         int x = 0, y = 0;                  // vị trí cửa sổ ở trạng thái bình thường (toạ độ màn hình)

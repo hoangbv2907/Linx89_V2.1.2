@@ -6,7 +6,7 @@ Class : MessageBuilder dùng để chuyển nội dung text thành dữ liệu d
 #include <vector>
 #include <string>
 #include <cstdint>
-#include "EncodingUtils.h"
+#include "common/EncodingUtils.h"
 
 class MessageBuilder {
 public: 

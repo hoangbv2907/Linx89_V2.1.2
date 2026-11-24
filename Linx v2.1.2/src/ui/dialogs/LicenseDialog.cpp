@@ -1,4 +1,4 @@
-﻿#include "LicenseDialog.h"
+﻿#include "ui/dialogs/LicenseDialog.h"
 #include <string>
 
 std::wstring LicenseDialog::Describe(const lic::Service& s) {

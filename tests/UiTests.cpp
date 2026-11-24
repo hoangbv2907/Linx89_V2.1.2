@@ -4,8 +4,8 @@
 #include <string>
 #include <vector>
 #include <filesystem>
-#include "../Linx v2.1.2/UILayout.h"
-#include "../Linx v2.1.2/AppSettings.h"
+#include "ui/UILayout.h"
+#include "settings/AppSettings.h"
 
 namespace fs = std::filesystem;
 static int g_fail = 0, g_run = 0;
@@ -83,21 +83,21 @@ static void TestSettings() {
     const fs::path p = dir / L"settings.json";
 
     AppSettings d = AppSettings::Load(p);                                           // file chưa có -> mặc định
-    CHECK(d.ip == "127.0.0.1" && d.autoReconnect && d.printMessageName.empty() && d.logKeepDays == 90 && d.logMaxMB == 200 && d.window.w == 0);
+    CHECK(d.ip == "127.0.0.1" && d.autoReconnect && d.printMessageName.empty() && d.logKeepDays == 90 && d.window.w == 0);
 
     AppSettings s;
-    s.ip = "192.168.0.50"; s.autoReconnect = false; s.printMessageName = "MSG1"; s.logKeepDays = 30; s.logMaxMB = 100;
+    s.ip = "192.168.0.50"; s.autoReconnect = false; s.printMessageName = "MSG1"; s.logKeepDays = 30;
     s.window = { 120, 80, 700, 900, true };
     CHECK(s.Save(p));
     AppSettings r = AppSettings::Load(p);                                           // lưu rồi đọc lại giữ nguyên
-    CHECK(r.ip == "192.168.0.50" && !r.autoReconnect && r.printMessageName == "MSG1" && r.logKeepDays == 30 && r.logMaxMB == 100);
+    CHECK(r.ip == "192.168.0.50" && !r.autoReconnect && r.printMessageName == "MSG1" && r.logKeepDays == 30);
     CHECK(r.window.x == 120 && r.window.y == 80 && r.window.w == 700 && r.window.h == 900 && r.window.maximized);
     CHECK(!fs::exists(fs::path(p.wstring() + L".tmp")));                            // không để lại file tạm
 
     // giá trị ngoài phạm vi / sai được làm sạch
-    { std::ofstream f(p, std::ios::trunc); f << R"({"ip":"999.1.1.1","logKeepDays":1,"logMaxMB":999999,"printMessageName":"TENQUADAIVOCUNGDAI123","window":{"w":-5,"h":50000}})"; }
+    { std::ofstream f(p, std::ios::trunc); f << R"({"ip":"999.1.1.1","logKeepDays":1,"printMessageName":"TENQUADAIVOCUNGDAI123","window":{"w":-5,"h":50000}})"; }
     r = AppSettings::Load(p);
-    CHECK(r.ip == "127.0.0.1" && r.logKeepDays == 7 && r.logMaxMB == 5000 && r.printMessageName.empty() && r.window.w == 0 && r.window.h == 0);
+    CHECK(r.ip == "127.0.0.1" && r.logKeepDays == 7 && r.printMessageName.empty() && r.window.w == 0 && r.window.h == 0);
     // tên bản tin có ký tự không phải ASCII
     { std::ofstream f(p, std::ios::trunc); f << "{\"printMessageName\":\"B\xE1\xBA\xA3n\"}"; }
     CHECK(AppSettings::Load(p).printMessageName.empty());
@@ -108,7 +108,7 @@ static void TestSettings() {
     r = AppSettings::Load(p);
     CHECK(r.logKeepDays == 90 && r.autoReconnect);                                  // sai kiểu -> bỏ cả file
     { std::ofstream f(p, std::ios::trunc); f << "[1,2,3]"; }
-    CHECK(AppSettings::Load(p).logMaxMB == 200);
+    CHECK(AppSettings::Load(p).logKeepDays == 90);
 
     // Save cũng làm sạch giá trị trước khi ghi
     AppSettings bad; bad.ip = "x"; bad.logKeepDays = 99999;

@@ -2,8 +2,8 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <string>
-#include "CommonTypes.h"
-#include "CommonDefs.h"
+#include "common/CommonTypes.h"
+#include "common/CommonDefs.h"
 //định nghĩa các kiểu dữ liệu Message
 //Truyền dữ liệu giữa AppController ↔ UIManager
 //Dùng trong message queue/event bus nội bộ

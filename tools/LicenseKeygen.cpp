@@ -5,7 +5,7 @@
 //   LicenseKeygen machine                              in mã máy của máy tính này
 // Mã máy và serial máy in do khách hàng đọc trên cửa sổ "Gia hạn" của phần mềm gửi cho bạn.
 // Số thứ tự mã (seq) phải DUY NHẤT cho mỗi mã bạn bán (mỗi mã chỉ dùng được một lần trên mỗi máy).
-#include "../Linx v2.1.2/LicenseCore.h"
+#include "license/LicenseCore.h"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>

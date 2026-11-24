@@ -3,8 +3,8 @@
 #include <ws2tcpip.h>
 #include <windows.h>                // thư viện Windows API
 #include <commctrl.h>               // thư viện control chuẩn
-#include "WindowManager.h"          // quản lý UI, tạo cửa sổ, xử lý message…
-#include "Logger.h"                 // ghi log
+#include "ui/WindowManager.h"          // quản lý UI, tạo cửa sổ, xử lý message…
+#include "logging/Logger.h"                 // ghi log
 
 // [2026-11-16 R26] Tạo Logger TRƯỚC g_windowManager để nó bị huỷ SAU: ~WindowManager -> ~AppController
 // vẫn ghi log khi chương trình thoát (trước đây Logger đã bị huỷ lúc đó -> dùng đối tượng đã huỷ).

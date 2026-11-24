@@ -4,11 +4,11 @@
 #include <cstdio>
 #include <vector>
 #include <cstdint>
-#include "../Linx v2.1.2/RciClient.h"
-#include "../Linx v2.1.2/RciWarnings.h"
-#include "../Linx v2.1.2/MessageBuilder.h"
-#include "../Linx v2.1.2/RequestQueue.h"
-#include "../Linx v2.1.2/Logger.h"
+#include "rci/RciClient.h"
+#include "rci/RciWarnings.h"
+#include "rci/MessageBuilder.h"
+#include "controller/RequestQueue.h"
+#include "logging/Logger.h"
 #include <thread>
 #include <chrono>
 #include <fstream>
@@ -173,8 +173,8 @@ static void TestLoggerUtf8() {
     const wchar_t* path = L"logger_test_output.log";
     DeleteFileW(path);
     Logger::GetInstance().SetLogFile(path);
-    Logger::GetInstance().Write(L"Kh\x1EDFi t\x1EA1o UI");       // "Khoi tao" co dau
-    Logger::GetInstance().Write(L"second line after non-ascii");
+    Logger::GetInstance().Write(L"Kh\x1EDFi t\x1EA1o UI", 1);       // "Khoi tao" co dau (canh bao: file chi ghi canh bao / loi)
+    Logger::GetInstance().Write(L"second line after non-ascii", 2);
     Logger::GetInstance().SetLogFile(L"linx_controller.log");
     std::ifstream f("logger_test_output.log", std::ios::binary);
     std::string s((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());

@@ -6,7 +6,7 @@
 #include <vector>
 #include <string>
 #include <memory>
-#include "Logger.h"
+#include "logging/Logger.h"
 
 // class ResourceTracker 
 class ResourceTracker {

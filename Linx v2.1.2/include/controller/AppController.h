@@ -13,13 +13,13 @@
 #include <chrono>
 #include <vector>
 
-#include "RciClient.h"
-#include "PrinterModel.h"
-#include "MessageDef.h"
-#include "ThreadSafeQueue.h"
-#include "CommonTypes.h"
-#include "RequestQueue.h"
-#include "ResourceTracker.h"
+#include "rci/RciClient.h"
+#include "controller/PrinterModel.h"
+#include "controller/MessageDef.h"
+#include "common/ThreadSafeQueue.h"
+#include "common/CommonTypes.h"
+#include "controller/RequestQueue.h"
+#include "common/ResourceTracker.h"
 
 class RciClient;
 class PrinterModel;
@@ -140,7 +140,7 @@ private:
     std::atomic<bool> autoReconnectAllowed_{ true };   // [2026-11-22 R43] cài đặt người dùng
     std::atomic<bool> autoReconnect_{ true };      // Tự động reconnect khi mất kết nối
     std::atomic<int> reconnectAttempts_{ 0 };      // Số lần đã thử reconnect
-    const int MAX_RECONNECT_ATTEMPTS = 5;          // Giới hạn số lần reconnect
+    const int MAX_RECONNECT_ATTEMPTS = 1;          // Giới hạn số lần reconnect
 
     // ================== State / Delta tracking ==================
     bool lastJetOn_ = false;                       // jetOn lần trước để phát hiện thay đổi (delta)
@@ -149,6 +149,13 @@ private:
 	bool isTargetConfirmed_ = false;               // đã xác nhận target count với máy in
 
     uint32_t printBaseline_ = 0;                   // [2026-11-18 R38] print count của máy lúc bắt đầu in; số đã in = count - baseline
+    // [2026-11-24 R54] Hỏi số đã in dày hơn (100 ms) khi GẦN ĐỦ sản lượng để giảm in thừa ở tốc độ cao.
+    bool     nearTarget_ = false;                  // còn lại <= max(kNearMinRemaining, tốc độ * kNearLookaheadSec)
+    double   printRate_ = 0;                       // tốc độ in ước lượng (bản / giây), làm mượt từ các lần đếm
+    uint32_t prevCount_ = 0;
+    bool     hasPrevCount_ = false;
+    std::chrono::steady_clock::time_point prevCountTime_{}, lastStatusPoll_{};
+    void     ResetRateTracking() { nearTarget_ = false; printRate_ = 0; hasPrevCount_ = false; }
     bool     stopAtTargetSent_ = false;            // [2026-11-18 R38] đã gửi Stop Print vì đủ sản lượng (chỉ gửi 1 lần)
 
     uint8_t  lastPStatus_ = 0;                     // P-STATUS lần trước (delta log)

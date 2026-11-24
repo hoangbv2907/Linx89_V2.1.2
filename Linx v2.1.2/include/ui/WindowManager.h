@@ -13,11 +13,12 @@ Gọi UIManager để cập nhật controls
 #include <string>
 #include <memory>
 
-#include "UIManager.h"      // Quản lý controls trên cửa sổ (edit, button, status, log...)
-#include "AppController.h"  // Logic nền: worker thread, socket, poll status, enqueue requests
-#include "LicenseCore.h"     // [2026-11-22 R42]
-#include "AppSettings.h"     // [2026-11-22 R43]
-#include "MessageDef.h"     // WM_APP_* + struct message trao đổi giữa worker và UI thread
+#include "ui/UIManager.h"      // Quản lý controls trên cửa sổ (edit, button, status, log...)
+#include "controller/AppController.h"  // Logic nền: worker thread, socket, poll status, enqueue requests
+#include "license/LicenseCore.h"     // [2026-11-22 R42]
+#include "settings/AppSettings.h"     // [2026-11-22 R43]
+#include "auth/AuthCore.h"        // [2026-11-23 R45]
+#include "controller/MessageDef.h"     // WM_APP_* + struct message trao đổi giữa worker và UI thread
 
 class WindowManager {
 public:
@@ -30,6 +31,8 @@ public:
 
     // Tạo cửa sổ chính (CreateWindowEx) với title/size
     bool CreateMainWindow(const std::wstring& title, int width, int height);
+
+    // [2026-11-23 R45] Đăng nhập bắt buộc khi mở phần mềm. false = người dùng hủy -> thoát chương trình.
 
     // [2026-11-22 R43] true nếu lần chạy trước đóng chương trình khi đang phóng to
     bool StartMaximized() const { return settings_.window.maximized; }
@@ -90,6 +93,9 @@ private:
     void OnSetClicked();
     void OnDownloadClicked();   // [2026-11-18 R36] tải remote field/message/count từ máy về
     void OnAdjustClicked();
+    int LoginInteractive(HWND owner);         // [2026-11-23 R45] hộp thoại đăng nhập (chọn cấp + mật khẩu); trả cấp (1/2) hoặc 0 nếu hủy
+    bool RequireSupervisor();                 // [2026-11-23 R45] true nếu đang là Giám sát viên (hỏi mật khẩu Giám sát nếu chưa)
+    void RefreshRoleUi();                     // [2026-11-23 R45] phát hiện phiên Giám sát tự hết -> ghi nhật ký
     void OnMessageSelected();                 // [2026-11-22 R44] người dùng chọn bản tin trong ô chọn
     void OnSettingsClicked(int tab = 0);   // [2026-11-22 R43] ⚙ Cài đặt (Kết nối / Nhật ký / Bản quyền / Giới thiệu)
     void ApplySettings(const AppSettings& s, bool save);   // áp dụng cài đặt vào chương trình (và lưu file)
@@ -104,6 +110,8 @@ private:
 
     std::unique_ptr<UIManager> uiManager_;         // Quản lý UI controls theo vòng đời window
     std::unique_ptr<AppController> appController_; // Trung tâm logic: socket/poll/request -> post message về UI
+    auth::Session session_;                        // [2026-11-23 R45] phiên đăng nhập (Vận hành / Giám sát)
+    bool lastSupervisor_ = false;
     AppSettings settings_;                         // [2026-11-22 R43] cài đặt người dùng (settings.json)
     std::unique_ptr<lic::Service> license_;        // [2026-11-22 R42] bộ đếm giờ + mã gia hạn
     int lastWarnHours_ = 1 << 30;                  // [2026-11-22 R42] mốc cảnh báo đã nhắc (giờ còn lại)

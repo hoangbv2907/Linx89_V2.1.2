@@ -1,5 +1,5 @@
-#include "LicenseCore.h"
-#include "AppPaths.h"
+#include "license/LicenseCore.h"
+#include "settings/AppPaths.h"
 #include <windows.h>
 #include <bcrypt.h>
 #include <fstream>

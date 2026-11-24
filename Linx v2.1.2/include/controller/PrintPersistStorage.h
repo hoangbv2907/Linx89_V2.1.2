@@ -1,5 +1,5 @@
 ﻿#pragma once
-#include "PrintPersistData.h"
+#include "controller/PrintPersistData.h"
 #include <optional>
 
 // Lưu trữ dữ liệu in ấn giữa các phiên làm việc của Linx Controller

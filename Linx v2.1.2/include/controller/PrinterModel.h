@@ -4,7 +4,7 @@ các module khác sẽ đọc/ghi dữ liệu của máy in thông qua class nà
 */
 #pragma once
 #include <string>
-#include "CommonTypes.h"
+#include "common/CommonTypes.h"
 #include <mutex>
 
 class PrinterModel {

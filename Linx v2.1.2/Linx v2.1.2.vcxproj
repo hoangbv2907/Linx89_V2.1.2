@@ -75,6 +75,7 @@
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
@@ -89,6 +90,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
@@ -101,6 +103,7 @@
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
@@ -117,6 +120,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
@@ -126,58 +130,82 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\..\..\Downloads\json.hpp" />
-    <ClInclude Include="AppController.h" />
-    <ClInclude Include="AppPaths.h" />
-    <ClInclude Include="AppSettings.h" />
-    <ClInclude Include="ColorScheme.h" />
-    <ClInclude Include="CommonDefs.h" />
-    <ClInclude Include="CommonTypes.h" />
-    <ClInclude Include="EncodingUtils.h" />
-    <ClInclude Include="EventLog.h" />
-    <ClInclude Include="LicenseCore.h" />
-    <ClInclude Include="LicenseDialog.h" />
-    <ClInclude Include="LicensePublicKey.h" />
-    <ClInclude Include="FontManager.h" />
-    <ClInclude Include="Logger.h" />
-    <ClInclude Include="LogViewerDialog.h" />
-    <ClInclude Include="MessageBuilder.h" />
-    <ClInclude Include="MessageDef.h" />
-    <ClInclude Include="MessageLogger.h" />
-    <ClInclude Include="ModernButton.h" />
-    <ClInclude Include="PrinterModel.h" />
-    <ClInclude Include="PrintPersistData.h" />
-    <ClInclude Include="PrintPersistStorage.h" />
-    <ClInclude Include="RciClient.h" />
-    <ClInclude Include="RciWarnings.h" />
-    <ClInclude Include="RequestQueue.h" />
-    <ClInclude Include="SettingsDialog.h" />
-    <ClInclude Include="UILayout.h" />
-    <ClInclude Include="ResourceTracker.h" />
-    <ClInclude Include="ThreadSafeQueue.h" />
-    <ClInclude Include="ToggleSwitch.h" />
-    <ClInclude Include="UIManager.h" />
-    <ClInclude Include="WindowManager.h" />
+    <ClInclude Include="include\third_party\json.hpp" />
+    <ClInclude Include="include\controller\AppController.h" />
+    <ClInclude Include="include\settings\AppPaths.h" />
+    <ClInclude Include="include\auth\AuthCore.h" />
+    <ClInclude Include="include\settings\AppSettings.h" />
+    <ClInclude Include="include\ui\ColorScheme.h" />
+    <ClInclude Include="include\common\CommonDefs.h" />
+    <ClInclude Include="include\common\CommonTypes.h" />
+    <ClInclude Include="include\common\EncodingUtils.h" />
+    <ClInclude Include="include\logging\EventLog.h" />
+    <ClInclude Include="include\license\LicenseCore.h" />
+    <ClInclude Include="include\ui\dialogs\LicenseDialog.h" />
+    <ClInclude Include="include\license\LicensePublicKey.h" />
+    <ClInclude Include="include\ui\FontManager.h" />
+    <ClInclude Include="include\logging\Logger.h" />
+    <ClInclude Include="include\ui\dialogs\LogViewerDialog.h" />
+    <ClInclude Include="include\rci\MessageBuilder.h" />
+    <ClInclude Include="include\controller\MessageDef.h" />
+    <ClInclude Include="include\ui\MessageLogger.h" />
+    <ClInclude Include="include\ui\ModernButton.h" />
+    <ClInclude Include="include\controller\PrinterModel.h" />
+    <ClInclude Include="include\controller\PrintPersistData.h" />
+    <ClInclude Include="include\controller\PrintPersistStorage.h" />
+    <ClInclude Include="include\rci\RciClient.h" />
+    <ClInclude Include="include\rci\RciWarnings.h" />
+    <ClInclude Include="include\ui\dialogs\PinDialog.h" />
+    <ClInclude Include="include\controller\RequestQueue.h" />
+    <ClInclude Include="include\ui\dialogs\SettingsDialog.h" />
+    <ClInclude Include="include\ui\UILayout.h" />
+    <ClInclude Include="include\common\ResourceTracker.h" />
+    <ClInclude Include="include\common\ThreadSafeQueue.h" />
+    <ClInclude Include="include\ui\ToggleSwitch.h" />
+    <ClInclude Include="include\ui\UIManager.h" />
+    <ClInclude Include="include\ui\WindowManager.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="AppController.cpp" />
-    <ClCompile Include="AppSettings.cpp" />
-    <ClCompile Include="LicenseCore.cpp" />
-    <ClCompile Include="LicenseDialog.cpp" />
-    <ClCompile Include="LogViewerDialog.cpp" />
-    <ClCompile Include="main.cpp" />
-    <ClCompile Include="MessageLogger.cpp" />
-    <ClCompile Include="ModernButton.cpp" />
-    <ClCompile Include="SettingsDialog.cpp" />
-    <ClCompile Include="PrintPersistStorage.cpp" />
-    <ClCompile Include="RciClient.cpp" />
-    <ClCompile Include="RciWarnings.cpp" />
-    <ClCompile Include="ToggleSwitch.cpp" />
-    <ClCompile Include="UIManager.cpp" />
-    <ClCompile Include="WindowManager.cpp" />
+    <ClCompile Include="src\controller\AppController.cpp" />
+    <ClCompile Include="src\settings\AppSettings.cpp" />
+    <ClCompile Include="src\auth\AuthCore.cpp" />
+    <ClCompile Include="src\license\LicenseCore.cpp" />
+    <ClCompile Include="src\ui\dialogs\LicenseDialog.cpp" />
+    <ClCompile Include="src\ui\dialogs\LogViewerDialog.cpp" />
+    <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\ui\MessageLogger.cpp" />
+    <ClCompile Include="src\ui\ModernButton.cpp" />
+    <ClCompile Include="src\ui\dialogs\PinDialog.cpp" />
+    <ClCompile Include="src\ui\dialogs\SettingsDialog.cpp" />
+    <ClCompile Include="src\controller\PrintPersistStorage.cpp" />
+    <ClCompile Include="src\rci\RciClient.cpp" />
+    <ClCompile Include="src\rci\RciWarnings.cpp" />
+    <ClCompile Include="src\ui\ToggleSwitch.cpp" />
+    <ClCompile Include="src\ui\UIManager.cpp" />
+    <ClCompile Include="src\ui\WindowManager.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\tests\AppControllerTests.cpp" />
+    <None Include="..\tests\AuthTests.cpp" />
+    <None Include="..\tests\FakePrinter.h" />
+    <None Include="..\tests\LicenseTests.cpp" />
+    <None Include="..\tests\LogTests.cpp" />
+    <None Include="..\tests\ManualFlowTests.cpp" />
+    <None Include="..\tests\RciFrameTests.cpp" />
+    <None Include="..\tests\RciSimTests.cpp" />
+    <None Include="..\tests\TEST_CASES.md" />
+    <None Include="..\tests\UiTests.cpp" />
+    <None Include="..\tests\build_tests.bat" />
+    <None Include="..\tools\LicenseKeygen.cpp" />
+    <None Include="..\tools\LicenseKeygenGui.cpp" />
+    <None Include="..\tools\build_keygen.bat" />
+    <None Include="..\installer\install.cmd" />
+    <None Include="..\installer\uninstall.cmd" />
+    <None Include="..\build_release.bat" />
     <None Include="cpp.hint" />
+    <None Include="..\README.md" />
+    <None Include="..\CHANGELOG.md" />
+    <None Include="..\.gitignore" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

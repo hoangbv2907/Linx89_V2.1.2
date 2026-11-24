@@ -1,7 +1,7 @@
 ﻿
-#include "AppController.h"
-#include "Logger.h"
-#include "FontManager.h"
+#include "controller/AppController.h"
+#include "logging/Logger.h"
+#include "ui/FontManager.h"
 #define WIN32_LEAN_AND_MEAN
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -9,12 +9,13 @@
 #include <chrono>
 #include <thread>
 #include <algorithm>
+#include <cmath>
 #include <future>
-#include "PrintPersistData.h"
-#include "PrintPersistStorage.h"
-#include "MessageBuilder.h"
-#include "EncodingUtils.h"
-#include "RciWarnings.h"
+#include "controller/PrintPersistData.h"
+#include "controller/PrintPersistStorage.h"
+#include "rci/MessageBuilder.h"
+#include "common/EncodingUtils.h"
+#include "rci/RciWarnings.h"
 // ================== Helper functions (namespace ẩn) ==================
 static std::wstring ToHex2(uint8_t v) {
     wchar_t buf[8];
@@ -32,6 +33,10 @@ static std::wstring ToHex8(uint32_t v) {
 static const int kMaxStatusFailures = 5;                              // số lần status lỗi liên tiếp -> coi như mất kết nối
 static const auto kJetTransitionTimeout = std::chrono::minutes(5);    // tài liệu: jet shutdown có thể tới 4 phút
 static const auto kReconnectInterval = std::chrono::seconds(2);       // giãn cách giữa các lần reconnect
+static const int kPollIntervalMs = 300;                               // chu kỳ poll bình thường (status + print count)
+static const int kNearPollIntervalMs = 100;                           // [R54] chu kỳ hỏi print count khi gần đủ sản lượng
+static const int kNearMinRemaining = 5;                               // [R54] gần đủ: còn <= 5 bản ...
+static const double kNearLookaheadSec = 1.5;                          // [R54] ... hoặc còn <= tốc độ in * 1.5 giây
 static const int kPollTimeoutMs = 500;                                // timeout cho lệnh poll (status / print count)
 
 // [2026-11-13 R13] Chuyển what() (ANSI code page) sang wstring đúng, thay cho cách copy từng byte (sai với non-ASCII).
@@ -442,7 +447,7 @@ void AppController::WorkerLoop() {
             try {
                 // 0) ƯU TIÊN TUYỆT ĐỐI: XỬ LÝ REQUEST TỪ UI TRƯỚC
                 Request req;
-                if (requestQueue_.Pop(req, 50)) {
+                if (requestQueue_.Pop(req, 0)) {   // [R54] không chặn thêm 50 ms mỗi vòng (chu kỳ poll gần đủ sản lượng = 100 ms)
                     HandleRequest(req);
                     continue;
                 }
@@ -480,7 +485,7 @@ void AppController::WorkerLoop() {
                 }
                 // 2) Nếu đã kết nối → poll hoặc idle
                 DoPeriodicPoll();
-                requestQueue_.WaitForRequest(POLL_INTERVAL_MS);
+                requestQueue_.WaitForRequest(nearTarget_ ? 20 : POLL_INTERVAL_MS);   // [R54] gần đủ: thức dày để poll mỗi 100 ms
             }
             // Catch lỗi trong vòng lặp nội bộ
             catch (const std::exception& e) {
@@ -589,10 +594,16 @@ void AppController::DoPeriodicPoll() {
     auto now = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastCommandTime_).count();
 
-    if (elapsed < 300) return;
-    HandleStatusRequest();
-    // [2026-11-16 R24] Có request của UI đang chờ (vd Stop Print) -> dừng poll để xử lý ngay.
-    if (!requestQueue_.Empty()) return;
+    const bool fastPoll = nearTarget_ && printerModel_->GetState().status == PrinterStateType::Printing;
+    if (elapsed < (fastPoll ? kNearPollIntervalMs : kPollIntervalMs)) return;
+    // [R54] Gần đủ sản lượng: hỏi print count mỗi 100 ms, còn status vẫn giữ chu kỳ 300 ms (không tăng tải lên máy in).
+    const auto statusAge = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastStatusPoll_).count();
+    if (!fastPoll || statusAge >= kPollIntervalMs) {
+        lastStatusPoll_ = now;
+        HandleStatusRequest();
+        // [2026-11-16 R24] Có request của UI đang chờ (vd Stop Print) -> dừng poll để xử lý ngay.
+        if (!requestQueue_.Empty()) return;
+    }
     if (ShouldGetPrintCount()) {
         HandlePrintCountRequest();
     }
@@ -644,7 +655,7 @@ void AppController::HandleStatusRequest() {
     // 1) P-STATUS
     if (!hasLastStatus_ || raw.pStatus != lastPStatus_) {
         if (raw.pStatus == 0 && hasLastStatus_ && lastPStatus_ != 0) {
-            SendLogMessage(L"✅ P-STATUS cleared", 0);
+            SendLogMessage(L"✅ P-STATUS cleared", 4);
         }
         else if (raw.pStatus != 0) {
             SendLogMessage(L"🔴 P-STATUS=0x" + ToHex2(raw.pStatus) + L" " + raw.pStatusText, 2);
@@ -655,7 +666,7 @@ void AppController::HandleStatusRequest() {
     // 2) C-STATUS (thêm log cleared + sửa level)
     if (!hasLastStatus_ || raw.cStatus != lastCStatus_) {
         if (raw.cStatus == 0 && hasLastStatus_ && lastCStatus_ != 0) {
-            SendLogMessage(L"✅ C-STATUS cleared", 0);
+            SendLogMessage(L"✅ C-STATUS cleared", 4);
         }
         else if (raw.cStatus != 0) {
             // 0x42/0x43 là warning; còn lại coi như error
@@ -688,15 +699,15 @@ void AppController::HandleStatusRequest() {
         if (cleared) {
             auto clearedList = DecodeWarningMask(cleared);
             if (!clearedList.empty()) {
-                SendLogMessage(L"✅ Warning OFF: " + JoinWithComma(clearedList), 0);
+                SendLogMessage(L"✅ Warning OFF: " + JoinWithComma(clearedList), 4);
             }
             else {
-                SendLogMessage(L"✅ Warning OFF (mask=0x" + ToHex8(cleared) + L")", 0);
+                SendLogMessage(L"✅ Warning OFF (mask=0x" + ToHex8(cleared) + L")", 4);
             }
         }
 
         if (hasLastStatus_ && prev != 0 && now == 0) {
-            SendLogMessage(L"✅ All warnings cleared (mask=0)", 0);
+            SendLogMessage(L"✅ All warnings cleared (mask=0)", 4);
         }
 
         lastErrorMask_ = now;
@@ -837,6 +848,20 @@ void AppController::HandlePrintCountRequest() {
     // [2026-11-18 R38] Số đã in = count hiện tại - count lúc bắt đầu in (máy có thể đã giữ count cũ / count do 140D đặt).
     const int targetCount = printerModel_->GetTargetCount();
     const int printed = (count >= printBaseline_) ? (int)(count - printBaseline_) : 0;
+    {   // [R54] ước lượng tốc độ in và xác định "gần đủ sản lượng"
+        const auto tnow = std::chrono::steady_clock::now();
+        if (hasPrevCount_ && count >= prevCount_) {
+            const double dt = std::chrono::duration<double>(tnow - prevCountTime_).count();
+            if (dt > 0.05) {
+                const double inst = (count - prevCount_) / dt;
+                printRate_ = printRate_ <= 0 ? inst : 0.5 * printRate_ + 0.5 * inst;
+            }
+        }
+        prevCount_ = count; prevCountTime_ = tnow; hasPrevCount_ = true;
+        const int remaining = targetCount - printed;
+        nearTarget_ = targetCount > 0 && remaining > 0 &&
+            remaining <= (std::max)(kNearMinRemaining, (int)std::ceil(printRate_ * kNearLookaheadSec));
+    }
 
     if (targetCount > 0 && printed >= targetCount) {
         printerModel_->UpdateJobProgress(targetCount);
@@ -844,7 +869,7 @@ void AppController::HandlePrintCountRequest() {
         if (!stopAtTargetSent_) {
             stopAtTargetSent_ = true;
             isTargetConfirmed_ = false;
-            SendLogMessage(L"✅ Đã đạt số lượng in", 0);
+            SendLogMessage(L"✅ Đã đạt số lượng in", 4);
             if (rciClient_->StopPrint()) {
                 SendLogMessage(L"⏹️ Đủ sản lượng - đã gửi lệnh tạm dừng in", 0);
             }
@@ -915,10 +940,14 @@ void AppController::HandleStartPrintRequest(const Request& req) {
     if (!PrepareRemoteValue(WideToUtf8(printerModel_->GetState().remoteFieldName), req.data, padded, false)) {
         return;
     }
-    std::vector<uint8_t> fieldData(padded.begin(), padded.end());
-    if (!fieldData.empty() && !rciClient_->DownloadRemoteField(fieldData)) {
-        SendLogMessage(L"Lỗi DownloadRemoteField (29D)", 2);
-        return;
+    // [2026-11-23 R47] Gửi theo TÊN (158D) thay vì 29D: 29D đòi tổng ký tự của TẤT CẢ remote field trong bản tin
+    // (bản tin nhiều field -> NAK 64). 158D chỉ ghi đúng field đã chọn, độ dài đã đệm đúng kích thước.
+    if (!padded.empty()) {
+        const std::string fname = WideToUtf8(printerModel_->GetState().remoteFieldName);
+        if (!rciClient_->SendRemoteFieldDataByName(fname, padded, 3000)) {
+            SendLogMessage(L"Lỗi gửi remote field (158D)", 2);
+            return;
+        }
     }
     // [2026-11-18 R38] Mốc count của máy trước khi in; số đã in = count - mốc.
     {
@@ -931,8 +960,9 @@ void AppController::HandleStartPrintRequest(const Request& req) {
         return;
     }
     stopAtTargetSent_ = false;
+    ResetRateTracking();
     printerModel_->SetCurrentJob(req.data, req.count);
-    SendLogMessage(L"Đã gửi job in mới (RCI chuẩn)", 0);
+    SendLogMessage(L"Đã gửi job in mới (RCI chuẩn)", 4);
     lastCommandTime_ = std::chrono::steady_clock::now();
 }
 
@@ -943,7 +973,7 @@ void AppController::HandleStopPrintRequest() {
             return;
         }
     }
-    SendLogMessage(L"Đã gửi lệnh dừng in, chờ máy in phản hồi...", 0);
+    SendLogMessage(L"Đã gửi lệnh dừng in, chờ máy in phản hồi...", 4);
     lastCommandTime_ = std::chrono::steady_clock::now();
 }
 // Job/content/count
@@ -951,7 +981,7 @@ void AppController::HandleUploadContentRequest(const Request& request) {
     int target = request.count;
     if (target <= 0) target = 1;
     printerModel_->SetCurrentJob(request.data, target);
-    SendLogMessage(L"Đã cập nhật nội dung in và số lượng: " + std::to_wstring(target), 0);
+    SendLogMessage(L"Đã cập nhật nội dung in và số lượng: " + std::to_wstring(target), 4);
     SavePrintDataOnExit();
     lastCommandTime_ = std::chrono::steady_clock::now();
 }
@@ -1004,7 +1034,7 @@ void AppController::HandleUploadRemoteFieldRequest(const Request& req)
 
     printerModel_->SetCurrentJob(req.data, target);
     SavePrintDataOnExit();
-    SendLogMessage(L"✅ Đã gửi nội dung vào Remote Field (0x9E) và lưu nội dung", 1);
+    SendLogMessage(L"✅ Đã gửi nội dung vào Remote Field (0x9E) và lưu nội dung", 4);
     lastCommandTime_ = std::chrono::steady_clock::now();
 }
 // [2026-11-18 R33] Chuẩn bị giá trị remote field: UTF-8, đúng BẰNG số ký tự của field (đệm khoảng trắng).
@@ -1099,7 +1129,7 @@ void AppController::HandleRefreshMessagesRequest() {
     st.messages = list;
     st.selectedMessage = selW;
     printerModel_->SetState(st);
-    SendLogMessage(L"📋 Có " + std::to_wstring(list.size()) + L" bản tin trên máy", 0);
+    SendLogMessage(L"📋 Có " + std::to_wstring(list.size()) + L" bản tin trên máy", 3);
 }
 
 void AppController::HandleSelectMessageRequest(const Request& req) {
@@ -1166,12 +1196,12 @@ void AppController::HandleDownloadFromPrinterRequest() {
         st.remoteFieldName = Utf8ToWide(info->name);
         st.remoteFieldMax = info->maxChars;
         SendLogMessage(L"📥 Remote field: " + st.remoteFieldName + L" - " + std::to_wstring((int)info->maxChars) +
-            L" ký tự (bắt buộc đúng bằng kích thước này)", 0);
+            L" ký tự (bắt buộc đúng bằng kích thước này)", 3);
     }
     uint32_t count = 0; std::string msgName;
     if (rciClient_->RequestMessagePrintCount(count, msgName, "", 3000)) {
         st.messageName = Utf8ToWide(msgName);
-        SendLogMessage(L"📥 Message: " + st.messageName + L" - print count trên máy: " + std::to_wstring(count), 0);
+        SendLogMessage(L"📥 Message: " + st.messageName + L" - print count trên máy: " + std::to_wstring(count), 3);
     }
     else {
         SendLogMessage(L"⚠️ Không đọc được message/print count (141D)", 1);
@@ -1212,7 +1242,7 @@ void AppController::HandleAdjustCountRequest(const Request& req) {
     if (nt > printed) stopAtTargetSent_ = false;   // nâng mục tiêu: cho phép cơ chế dừng khi đủ chạy lại
     SavePrintDataOnExit();
     SendLogMessage(std::wstring(req.count >= 0 ? L"➕ In bù " : L"➖ In trừ ") + std::to_wstring(req.count >= 0 ? req.count : -req.count) +
-        L": mục tiêu " + std::to_wstring(target) + L" → " + std::to_wstring(nt), 0);
+        L": mục tiêu " + std::to_wstring(target) + L" → " + std::to_wstring(nt), 4);
 }
 
 // Jet
@@ -1276,7 +1306,7 @@ void AppController::HandleConnectRequest(const Request& req) {
         Logger::GetInstance().Write(L"Connect request ignored: already connected");
         return;
     }
-    SendLogMessage(L"Đang kết nối...", 0);
+    SendLogMessage(L"Đang kết nối...", 3);
     printerModel_->SetConnectionInfo(req.data, kRciDefaultPort);
     {   // [2026-11-16 R20] Trạng thái "Connecting" do worker đặt (trước đây UI thread ghi).
         PrinterState c = printerModel_->GetState();
@@ -1346,7 +1376,7 @@ void AppController::HandleConnectRequest(const Request& req) {
         PrinterState ps = printerModel_->GetState();
         if (rciClient_->RequestPrinterSerial(sn)) {
             ps.printerSerial = Utf8ToWide(sn);
-            SendLogMessage(L"🏷️ Serial máy in: " + ps.printerSerial, 0);
+            SendLogMessage(L"🏷️ Serial máy in: " + ps.printerSerial, 3);
         }
         else {
             ps.printerSerial.clear();
@@ -1355,6 +1385,7 @@ void AppController::HandleConnectRequest(const Request& req) {
         printerModel_->SetState(ps);
         SendStateUpdate();
         HandleRefreshMessagesRequest();   // [2026-11-22 R44] danh sách bản tin để người dùng chọn
+        HandleDownloadFromPrinterRequest();   // [R47] đọc luôn kích thước field + bản tin hiện hành, không cần bấm Tải Về
     }
     EnableAutoReconnect();
     lastCommandTime_ = std::chrono::steady_clock::now();

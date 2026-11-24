@@ -1,12 +1,12 @@
-﻿#include "UIManager.h"
-#include "FontManager.h"
-#include "Logger.h"
-#include "EventLog.h"
-#include "UILayout.h"
+﻿#include "ui/UIManager.h"
+#include "ui/FontManager.h"
+#include "logging/Logger.h"
+#include "logging/EventLog.h"
+#include "ui/UILayout.h"
 #include <commctrl.h>
 #include <richedit.h>
 #include <algorithm>
-#include "CommonTypes.h"
+#include "common/CommonTypes.h"
 // ================== Lifecycle ==================
 UIManager::UIManager() {}
 

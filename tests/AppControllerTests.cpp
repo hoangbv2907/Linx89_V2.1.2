@@ -5,9 +5,9 @@
 #include "FakePrinter.h"
 #include <cstdio>
 #include <optional>
-#include "../Linx v2.1.2/AppController.h"
-#include "../Linx v2.1.2/PrintPersistData.h"
-#include "../Linx v2.1.2/PrintPersistStorage.h"
+#include "controller/AppController.h"
+#include "controller/PrintPersistData.h"
+#include "controller/PrintPersistStorage.h"
 
 // ---- stub: không đụng tới %LOCALAPPDATA%\LinxController ----
 bool PrintPersistStorage::Save(const PrintPersistData&) { return true; }

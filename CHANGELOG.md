@@ -3,6 +3,32 @@
 Mỗi thay đổi có mã `Rnn` và ngày sửa. Trong code, tìm theo chuỗi `[2026-11-13 Rnn]` để truy vết.
 Tài liệu tham chiếu: *Linx RCI Reference Manual MP65969-7* (CJ400 / 8800 / 8900 / Linx 10).
 
+## 2026-11-23 — lô 7: mật khẩu cố định, sửa nạp kích thước field / in nhiều field
+
+| Mã | Nội dung | File chính |
+|---|---|---|
+| R46 | Đơn giản hóa phân quyền: mật khẩu viết cứng (Vận hành 1111, Giám sát 1234), bỏ đổi mật khẩu / băm / mục `pin*` trong settings; Vận hành không hết hạn; Giám sát tự đăng xuất đúng 24 giờ kể từ lúc đăng nhập; thẻ "Bảo mật" → "Tài khoản" | `AuthCore.*`, `SettingsDialog.*`, `AppSettings.*`, `WindowManager.*` |
+| R47 | Sau khi kết nối tự đọc kích thước field + bản tin hiện hành (157D/141D), không cần bấm Tải Về. Bắt đầu in gửi nội dung bằng 158D theo tên thay cho 29D: 158D chỉ ghi đúng field đã chọn, an toàn cả khi bản tin có nhiều field (29D đòi tổng ký tự mọi field) | `AppController.cpp` |
+| R48 | Vận hành viên mở được ⚙ Cài đặt ở chế độ chỉ xem (vô hiệu IP, tự kết nối lại, tên bản tin, giữ nhật ký, mã gia hạn, Lưu, Kích hoạt; còn Đổi người dùng / xem nhật ký / sao chép thông tin / Đóng). XÓA NHẬT KÝ vẫn chỉ cho Giám sát | `SettingsDialog.*`, `WindowManager.cpp` |
+| R49 | Tổ chức lại mã nguồn: header trong `include/`, source trong `src/`, mỗi nơi chia thư mục con theo chức năng (`rci/`, `controller/`, `ui/`, `ui/dialogs/`, `auth/`, `license/`, `logging/`, `settings/`, `common/`, `third_party/`); `#include` tính từ `include/`; nhóm trong `.vcxproj.filters` khớp cây thư mục; cập nhật `.vcxproj`, `build_release.bat`, `build_tests.bat`; không đổi logic | toàn bộ |
+| R50 | Công cụ cấp mã dạng cửa sổ `LicenseKeygenGui` (bản dòng lệnh `LicenseKeygen.exe` là chương trình console nên bấm đúp chỉ chớp rồi tắt): dán thông tin khách → tự tách mã máy/serial, seq tự tăng, tự kiểm tra bằng khóa công khai của phần mềm, sao chép vào clipboard, ghi `issued_codes.csv`; thêm `toolsuild_keygen.bat` | `tools/LicenseKeygenGui.cpp` |
+| R51 | Vận hành viên là cấp thấp nhất, KHÔNG mật khẩu, là cấp mặc định khi mở phần mềm (bỏ màn hình đăng nhập lúc khởi động); chỉ Giám sát viên có mật khẩu (1234), tự hạ về Vận hành khi đủ 24 giờ; "Đổi người dùng" = đăng nhập Giám sát (từ Vận hành) hoặc về Vận hành (từ Giám sát, không mật khẩu) | `AuthCore.*`, `WindowManager.*`, `SettingsDialog.cpp`, `main.cpp` |
+| R52 | Rút gọn nhật ký, chỉ giữ thông báo quan trọng: file sự kiện `events_*.csv` chỉ lưu mức cảnh báo / lỗi / sự kiện chính (kết nối, bắt đầu in, đủ sản lượng, dừng in, đổi bản tin, SET / in bù-trừ, cảnh báo máy bật-tắt, gia hạn); thông tin thường và gỡ lỗi chỉ hiện trên màn hình. File kỹ thuật `linx_*.log` chỉ ghi cảnh báo + lỗi. Bỏ cài đặt "dung lượng tối đa" (cố định 200 MB), còn "số ngày giữ" | `EventLog.h`, `Logger.h`, `AppController.cpp`, `SettingsDialog.cpp`, `AppSettings.*` |
+| R53 | Cài đặt: bỏ hẳn các đoạn văn bản hướng dẫn trong 4 thẻ (đã bị chú thích) và căn lại vị trí: thẻ Kết nối / Bản quyền dồn lên, thu nhỏ khung thẻ và cửa sổ (445 → 395) cho vừa nội dung | `SettingsDialog.cpp` |
+| R54 | Giảm in thừa ở tốc độ cao: khi GẦN ĐỦ sản lượng (còn ≤ max(5, tốc độ in × 1,5 s) bản; tốc độ ước lượng từ các lần đếm) hỏi print count mỗi 100 ms thay vì ~300–450 ms (status vẫn 300 ms); vòng worker không còn chặn thêm 50 ms mỗi lượt. Đo bằng máy giả: ~3 → ~8 lần hỏi/giây, trễ từ bản in cuối tới lệnh dừng ≈ 60–110 ms. TC-CON-04 sửa theo `MAX_RECONNECT_ATTEMPTS = 1` | `AppController.cpp/.h` |
+| R52 | Rút gọn nhật ký, chỉ giữ thông báo quan trọng: file sự kiện `events_*.csv` chỉ lưu mức cảnh báo / lỗi / sự kiện chính (kết nối, bắt đầu in, đủ sản lượng, dừng in, đổi bản tin, SET / in bù-trừ, cảnh báo máy bật-tắt, gia hạn); thông tin thường và gỡ lỗi chỉ hiện trên màn hình. File kỹ thuật `linx_*.log` chỉ ghi cảnh báo + lỗi. Bỏ cài đặt "dung lượng tối đa" (cố định 200 MB), còn "số ngày giữ" | `EventLog.h`, `Logger.h`, `AppController.cpp`, `SettingsDialog.cpp`, `AppSettings.*` |
+
+Test mới: `AuthTests` (550), TC-FLD-01..04 (LinxSim có 4 field 10/5/8/3 và 4 bản tin), TC-PRD-03 đổi sang 9DH/9EH. Mô phỏng Python: 4 bản tin MSG1..MSG4, mỗi bản tin 1 field (RemoteField1..4 dài 10/5/8/3), 157D trả field của bản tin đang tải (138 kiểm tra). **Chưa thử với máy in thật.**
+
+## 2026-11-23 — lô 6: chọn bản tin từ danh sách, phân quyền 2 mức
+
+| Mã | Nội dung | File chính |
+|---|---|---|
+| R44 | Ô chọn bản tin (97D `M` → danh sách; 30D khi chọn; 157D + 141D để cập nhật kích thước field); đọc danh sách tự động sau khi kết nối; khóa khi đang in (máy NAK 20); bản tin bị xóa → tự làm mới; bố cục thêm một hàng (`UILayout.h`, tối thiểu 520×590) | `RciClient.*`, `AppController.*`, `UIManager.*`, `UILayout.h`, `WindowManager.cpp` |
+| R45 | Phân quyền 2 cấp, MỖI CẤP có mật khẩu (Vận hành mặc định 1111, Giám sát mặc định 1234; băm PBKDF2-SHA256; không giới hạn lần sai; không có quên mật khẩu); đăng nhập bắt buộc khi mở phần mềm; phiên Giám sát tự hết sau 24 giờ (chỉnh được); cấp người dùng chỉ hiện trong ⚙ Cài đặt › Bảo mật (không có nút vai trò ở màn hình chính, không ghi cấp vào ô nhật ký); ⚙ Cài đặt và XÓA NHẬT KÝ chỉ cho Giám sát. Bỏ phần vết kiểm toán theo yêu cầu | `AuthCore.*`, `PinDialog.*`, `SettingsDialog.*`, `AppSettings.*`, `WindowManager.cpp`, `main.cpp` |
+
+Test mới: `AuthTests` (248), `UiTests` mở rộng (11203), TC-MSG-01..05 (đổi tên TC-MSG cũ đã bị gỡ ở R39). Sửa lỗi test cũ: cổng giấy phép trong TC-LIC bắt biến cục bộ đã hết phạm vi. **Chưa thử với máy in thật** (bố cục trả về của 97D suy ra từ manual: đọc linh hoạt đếm 1/2 byte).
+
 ## 2026-11-22 — lô 5: giao diện co giãn, gộp chức năng vào ⚙ Cài đặt
 
 | Mã | Nội dung | File chính |

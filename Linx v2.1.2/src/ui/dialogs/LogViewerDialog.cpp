@@ -1,6 +1,6 @@
-﻿#include "LogViewerDialog.h"
-#include "EventLog.h"
-#include "AppPaths.h"
+﻿#include "ui/dialogs/LogViewerDialog.h"
+#include "logging/EventLog.h"
+#include "settings/AppPaths.h"
 #include <commdlg.h>
 #include <shellapi.h>
 #include <fstream>

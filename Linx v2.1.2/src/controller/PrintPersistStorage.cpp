@@ -4,10 +4,10 @@ bao gồm: nội dung in, số lượng mục tiêu cần đạt được, số 
 */
 #include <windows.h>
 #include <filesystem>
-#include "Logger.h"
-#include "PrintPersistStorage.h"
+#include "logging/Logger.h"
+#include "controller/PrintPersistStorage.h"
 #include <fstream>
-#include "json.hpp"
+#include "third_party/json.hpp"
 #include <ShlObj.h>   // SHGetFolderPathW
 #pragma comment(lib, "Shell32.lib")
 

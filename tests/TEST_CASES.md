@@ -50,7 +50,7 @@ escape `ESC ESC`, reply chia nhỏ, rác trước reply, sai Command ID: xem `Rc
 |---|---|---|---|---|---|
 | TC-PRD-01 | Đặt số lượng | Lệnh 140D: count 4 byte + tên 16 byte, tên toàn null = message hiện hành | `SetCount(3)` | Gửi 8CH, tên toàn 0; UI target = 3, printed = 0 | PASS |
 | TC-PRD-02 | Chưa SET thì không in | (quy tắc ứng dụng) | `StartPrinting` khi chưa SET | Không gửi 11H | PASS |
-| TC-PRD-03 | Quy trình bắt đầu in | Lệnh 30D, 29D, 17D | `SetPrintMessageName("MSG1")`, `StartPrinting("HELLO", 3)` | Thứ tự 14H → 1EH → 1DH → 11H; không gửi 0FH khi jet đang chạy; máy nhận đúng tên và nội dung; UI `Printing` | PASS |
+| TC-PRD-03 | Quy trình bắt đầu in | Lệnh 30D, 157D, 158D, 17D | `SetPrintMessageName("MSG1")`, `StartPrinting("HELLO", 3)` | Thứ tự 14H → 1EH → 9DH → 9EH → 11H (không dùng 1DH); không gửi 0FH khi jet đang chạy; máy nhận đúng tên và nội dung; UI `Printing` | PASS |
 | TC-PRD-04 | Theo dõi sản lượng | Lệnh 141D | Chưa in bản nào; rồi in từng bản (1, 2) | Có poll 8DH; UI printed = số bản in thực tế (0 → 1 → 2); **chưa** báo hoàn thành | **FAIL** |
 | TC-PRD-05 | Hoàn thành sản lượng | Lệnh 30D ghi chú: CJ400/8800/8900 không hỗ trợ in theo số lượng (host phải tự dừng) | In bản thứ 3 | Báo hoàn thành đúng 1 lần; printed = target = 3; host gửi Stop Print (12H); UI rời `Printing`; không in thừa | **FAIL** |
 | TC-PRD-06 | Chưa có message trên máy | Lệnh 29D: NAK 59 "No Print Message Loaded" | Máy không có message; `StartPrinting` | Log có mã lỗi; không gửi 11H; UI không sang `Printing` | PASS |
@@ -60,6 +60,16 @@ escape `ESC ESC`, reply chia nhỏ, rác trước reply, sai Command ID: xem `Rc
 | TC-NEW-01 | Điều kiện bắt đầu in (R34) | Hết mực (P-STATUS 7), hết dung môi (10), warning nghiêm trọng (cover off) | `StartPrinting` khi máy có từng lỗi đó | Log nêu lý do; không gửi 11H | PASS |
 | TC-NEW-02 | Cảnh báo của máy trên phần mềm (R35) | Warning mask 0x14 (bit 3 Ink Low) | Bật rồi tắt bit | `PrinterState.warnings` có rồi rỗng (UI hiện ở ô CẢNH BÁO) | PASS |
 | TC-NEW-03 | Tải về từ máy (R36) | 157D + 141D | `DownloadFromPrinter` | state có tên field, 5 ký tự, message MSG1 | PASS |
+| TC-MSG-01 | Danh sách bản tin (R44) | Lệnh 97D loại `M`: header 41 byte, tên ở byte 10..25 | Sau khi kết nối | `messages` = MSG1, MSG2; chọn sẵn bản tin đang tải trên máy | PASS |
+| TC-MSG-02 | Chọn bản tin (R44) | Lệnh 30D, 157D, 141D | `SelectMessage(MSG2)` | Gửi 30D rồi 157D, 141D; state có `selectedMessage`/`messageName` = MSG2 | PASS |
+| TC-MSG-03 | Đang in (R44) | 97D không hợp lệ khi đang in | Làm mới / chọn khi máy in | Không gửi 97D/30D; ô chọn giữ nguyên | PASS |
+| TC-MSG-04 | Bản tin bị xóa (R44) | NAK 36 | Chọn bản tin không còn trên máy | Tự đọc lại danh sách, chọn lại bản tin còn tồn tại | PASS |
+| TC-MSG-05 | Hết hạn giấy phép (R44) | (phần mềm) | Cổng giấy phép = hết hạn | Không chọn được bản tin; vẫn làm mới danh sách | PASS |
+| TC-FLD-01 | 4 bản tin mẫu (R47) | 97D `M` | Máy có MSG1..MSG4 | Danh sách đủ 4 tên | PASS |
+| TC-FLD-02 | Kích thước field khi chọn bản tin (R47) | 30D, 157D, 141D | Chọn lần lượt MSG1..MSG4; mỗi bản tin 1 field (RemoteField1..4) dài 10, 5, 8, 3 | Mỗi lần: 1EH → 9DH → 8DH; UI hiện đúng tên + kích thước field của bản tin | PASS |
+| TC-FLD-03 | In trên từng bản tin (R47) | 158D theo tên field | `StartPrinting("ABC")` trên MSG1..MSG4 | Gửi 9EH đúng tên field, đệm đủ 10/5/8/3 ký tự, không gửi 1DH, không NAK, có 11H | PASS |
+| TC-FLD-04 | Độ dài field theo bản tin (R47) | Manual 2.2.29 | MSG1..MSG4 | 10, 5, 8, 3 ký tự (đôi một khác nhau) | PASS |
+| TC-PRD-10 | Gần đủ sản lượng (R54) | 8DH | In 60 bản, bắn 10 bản rồi 47 bản nhanh | Xa mục tiêu: 2–4 lần hỏi 8DH/giây; gần đủ: ≥ 7 lần/giây; lệnh dừng < 250 ms sau bản cuối; không in thừa | PASS |
 | TC-SET-01 | Cài đặt "tự kết nối lại" (R43) | (phần mềm) | Tắt tuỳ chọn rồi ngắt kết nối từ phía máy; sau đó bật lại + Connect | Không tự nối lại; Connect thủ công thành công | PASS |
 | TC-LIC-01 | Serial máy in (R42) | Lệnh 152D: 9 byte | Kết nối | `printerSerial` = SN123456 | PASS |
 | TC-LIC-02 | Hết hạn chặn điều khiển (R42) | (phần mềm) | Cổng giấy phép = hết hạn; SET / in / jet / in bù / gửi field | Không lệnh nào tới máy; mỗi thao tác báo lý do | PASS |

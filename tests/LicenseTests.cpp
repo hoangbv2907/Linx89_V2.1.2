@@ -7,7 +7,7 @@
 #include <thread>
 #include <chrono>
 #include <windows.h>
-#include "../Linx v2.1.2/LicenseCore.h"
+#include "license/LicenseCore.h"
 
 namespace fs = std::filesystem;
 using namespace lic;

@@ -9,9 +9,9 @@
 #include <optional>
 #include <map>
 #include <algorithm>
-#include "../Linx v2.1.2/AppController.h"
-#include "../Linx v2.1.2/PrintPersistData.h"
-#include "../Linx v2.1.2/PrintPersistStorage.h"
+#include "controller/AppController.h"
+#include "controller/PrintPersistData.h"
+#include "controller/PrintPersistStorage.h"
 
 bool PrintPersistStorage::Save(const PrintPersistData&) { return true; }
 std::optional<PrintPersistData> PrintPersistStorage::Load() { return std::nullopt; }
@@ -88,15 +88,18 @@ struct LinxSim {
     std::string knownMessage = "MSG1";
     bool hasRemoteFields = true;
     std::vector<std::string> msgList{ "MSG1", "MSG2" };   // [R44] ban tin co tren may
-    std::string fieldName = "RemoteField1";
-    uint8_t fieldLen = 5;
+    // [R47] Bang remote field; MOI BAN TIN CHI CO 1 FIELD (chi so trong bang, mac dinh 0). 157D tra field cua ban tin dang tai
+    std::vector<std::pair<std::string, int>> fieldDefs{ { "RemoteField1", 5 } };
+    std::map<std::string, int> msgField;
+    int FieldIdxOf(const std::string& msg) const { auto it = msgField.find(msg); return it == msgField.end() ? 0 : it->second; }
+    int TotalLen(const std::string& msg) const { int i = FieldIdxOf(msg); return i < (int)fieldDefs.size() ? fieldDefs[i].second : 0; }
     uint32_t counter = 0;             // Message Print Count
     // dieu khien loi
     int statusBadChecksum = 0, statusNak = 0, statusSilent = 0;   // N reply status ke tiep bi loi
     // ghi nhan
     int badFrames = 0;
     std::vector<uint8_t> cmds;
-    std::string lastField29, lastField158, lastLoadName;
+    std::string lastField29, lastField158, lastField158Name, lastLoadName;
     uint32_t lastCountSet = 0xFFFFFFFF; Bytes lastCountName;
     int prints = 0;                   // so ban in THUC TE ke tu lan Start Print gan nhat
 
@@ -174,7 +177,7 @@ struct LinxSim {
             if (pl.size() < 2) { nak(0x16); break; }
             size_t n = pl[0] | (pl[1] << 8);
             if (pl.size() != 2 + n) { nak(0x16); break; }
-            if (n != fieldLen) { nak(0x40); break; }                         // 64 Number of remote characters
+            if ((int)n != TotalLen(knownMessage)) { nak(0x40); break; }                         // 64 Number of remote characters
             lastField29.assign((const char*)pl.data() + 2, n); ack();
             break;
         }
@@ -215,22 +218,31 @@ struct LinxSim {
         }
         case 0x9D: {   // Request Remote Field Data
             if (!hasRemoteFields) { ack({ 0x00 }); break; }
-            Bytes d{ 0x01, 0x1C };
-            std::string nm = fieldName; nm.resize(32, '\0');
-            d.insert(d.end(), nm.begin(), nm.end());
-            d.push_back(fieldLen); d.push_back(1); d.push_back(0); d.push_back(0);
+            Bytes d{ 1 };
+            { const auto& fd = fieldDefs[FieldIdxOf(knownMessage)];
+                d.push_back(0x1C);
+                std::string nm = fd.first; nm.resize(32, '\0');
+                d.insert(d.end(), nm.begin(), nm.end());
+                d.push_back((uint8_t)fd.second); d.push_back(1); d.push_back(0); d.push_back(0);
+            }
             ack(d);
             break;
         }
         case 0x9E: {   // Send Remote Field Data by Name: n, name\0, data\0 ; sai ten/do dai -> NAK 23
             if (pl.size() < 3 || pl[0] != 1) { nak(0x17); break; }
+            if (!messageLoaded) { nak(0x3B); break; }
+            if (!hasRemoteFields) { nak(0x3F); break; }
             std::string rest((const char*)pl.data() + 1, pl.size() - 1);
             size_t z = rest.find('\0');
             if (z == std::string::npos) { nak(0x17); break; }
             std::string nm = rest.substr(0, z), val = rest.substr(z + 1);
             if (val.empty() || val.back() != '\0') { nak(0x17); break; }
             val.pop_back();
-            if (nm != fieldName || val.size() != fieldLen) { nak(0x17); break; }
+            bool okf = false;
+            { const auto& fd = fieldDefs[FieldIdxOf(knownMessage)];
+                if (fd.first == nm && (int)val.size() == fd.second) okf = true; }
+            if (!okf) { nak(0x17); break; }
+            lastField158Name = nm;
             lastField158 = val; ack();
             break;
         }
@@ -288,7 +300,7 @@ int main() {
             std::printf("  TC-CON-04: bao loi ket noi sau %lld ms\n", FakePrinter::NowMs() - t0);
             TC("TC-CON-04", !ctrl.IsConnected());
             TC("TC-CON-04", !SawConnSince(mc, true));
-            TC("TC-CON-04", CountLogSince(ml, L"reconnect l") == 5);     // dung 5 lan thu tu dong
+            TC("TC-CON-04", CountLogSince(ml, L"reconnect l") == 1);     // dung 1 lan thu tu dong (MAX_RECONNECT_ATTEMPTS = 1)
             size_t ml2 = g.logs.size();
             PumpFor(3000);                                                // het luot -> khong thu nua
             TC("TC-CON-04", CountLogSince(ml2, L"reconnect l") == 0);
@@ -440,9 +452,10 @@ int main() {
             ctrl.SetPrintMessageName("MSG1");
             ctrl.StartPrinting(L"HELLO", 3);
             TC("TC-PRD-03", PumpUntil([&] { return sim.CountSince(mk, 0x11) == 1; }, 4000));
-            TC("TC-PRD-03", sim.InOrderSince(mk, { 0x14, 0x1E, 0x1D, 0x11 }));
+            TC("TC-PRD-03", sim.InOrderSince(mk, { 0x14, 0x1E, 0x9D, 0x9E, 0x11 }));
+            TC("TC-PRD-03", sim.CountSince(mk, 0x1D) == 0);              // [R47] khong dung 29D
             TC("TC-PRD-03", sim.CountSince(mk, 0x0F) == 0);              // jet dang chay -> khong gui Start Jet
-            TC("TC-PRD-03", sim.With([](LinxSim& s) { return s.lastLoadName == "MSG1" && s.lastField29 == "HELLO"; }));
+            TC("TC-PRD-03", sim.With([](LinxSim& s) { return s.lastLoadName == "MSG1" && s.lastField158 == "HELLO" && s.lastField158Name == "RemoteField1"; }));
             TC("TC-PRD-03", PumpUntil([] { return LastStatus(PrinterStateType::Printing) && g.states.back().printing; }, 3000));
         }
         // TC-PRD-04: dang in: poll 141D; so da in tren UI = so ban in thuc te (0 -> 1 -> 2), chua bao hoan thanh
@@ -472,6 +485,38 @@ int main() {
             PumpFor(1000);
             TC("TC-PRD-05", CountLogSince(doneMark, kDoneLog) == 1);
             TC("TC-PRD-05", sim.With([](LinxSim& s) { return s.prints == 3; }));   // khong in thua
+        }
+        // ===== [R54] Gan du san luong: hoi print count day hon (100 ms), giam in thua o toc do cao =====
+        {
+            size_t mk = sim.CmdCount();
+            ctrl.SetCount(60); PumpFor(400);                                 // sau khi du san luong phai SET lai
+            mk = sim.CmdCount();
+            ctrl.StartPrinting(L"FAST", 60);
+            TC("TC-PRD-10", PumpUntil([&] { return LastStatus(PrinterStateType::Printing) && g.states.back().printing; }, 4000));
+            // con xa muc tieu (in 10/40): chu ky ~300 ms -> trong 1 s chi ~3 lan hoi 8DH
+            for (int i = 0; i < 10; ++i) { sim.Trigger(1); PumpFor(40); }
+            PumpFor(300);
+            size_t mf = sim.CmdCount();
+            PumpFor(1000);
+            const int farPolls = sim.CountSince(mf, 0x8D);
+            TC("TC-PRD-10", farPolls >= 2 && farPolls <= 4);
+            // gan muc tieu (con 3 ban): ~100 ms -> >= 7 lan hoi trong 1 s
+            for (int i = 0; i < 47; ++i) { sim.Trigger(1); PumpFor(15); }
+            PumpFor(350);                                                     // cho app nhan ra "gan du"
+            size_t mn = sim.CmdCount();
+            PumpFor(1000);
+            const int nearPolls = sim.CountSince(mn, 0x8D);
+            TC("TC-PRD-10", nearPolls >= 7);
+            TC("TC-PRD-10", nearPolls > farPolls);
+            // du san luong: tre tu ban in cuoi toi lenh Stop < 250 ms (truoc R54: toi da ~400 ms)
+            const auto t0 = std::chrono::steady_clock::now();
+            sim.Trigger(3);
+            const bool stopped = PumpUntil([&] { return sim.CountSince(mn, 0x12) >= 1; }, 2000);
+            const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
+            TC("TC-PRD-10", stopped && ms < 250);
+            std::printf("   [TC-PRD-10] far=%d near=%d polls/s, tre dung = %lld ms\n", farPolls, nearPolls, (long long)ms);
+            TC("TC-PRD-10", sim.With([](LinxSim& s) { return s.prints == 60; }));     // khong in thua
+            PumpUntil([] { return LastStatus(PrinterStateType::Ready); }, 3000);
         }
         // TC-SEQ-05: Stop Print (12H) -> print state Idle -> UI Ready (jet van chay)
         {
@@ -602,6 +647,54 @@ int main() {
             PumpFor(800);
             TC("TC-MSG-05", sim.CountSince(mk4, 0x1E) == 0 && sim.CountSince(mk4, 0x61) == 1);
             ctrl.SetLicenseGate(nullptr);
+        }
+        // ===== [R47] 4 ban tin mau, 4 remote field co do dai khac nhau (10, 5, 8, 3); MSGk chi co 1 field RemoteFieldk =====
+        {
+            sim.With([](LinxSim& s) {
+                s.fieldDefs = { { "RemoteField1", 10 }, { "RemoteField2", 5 }, { "RemoteField3", 8 }, { "RemoteField4", 3 } };
+                s.msgList = { "MSG1", "MSG2", "MSG3", "MSG4" };
+                s.msgField = { { "MSG1", 0 }, { "MSG2", 1 }, { "MSG3", 2 }, { "MSG4", 3 } };
+                return 0; });
+            ctrl.RefreshMessageList();
+            TC("TC-FLD-01", PumpUntil([] { return !g.states.empty() && g.states.back().messages.size() == 4; }, 3000));
+            TC("TC-FLD-01", g.states.back().messages[0] == L"MSG1" && g.states.back().messages[3] == L"MSG4");
+
+            const wchar_t* names[] = { L"MSG1", L"MSG2", L"MSG3", L"MSG4" };
+            for (int k = 0; k < 4; ++k) {
+                const std::wstring n = names[k];
+                size_t mk = sim.CmdCount();
+                ctrl.SelectMessage(n);
+                // chon ban tin -> doc lai 157D: ten + kich thuoc field hien thi
+                static const int kSizes[4] = { 10, 5, 8, 3 };
+                const int want = kSizes[k];
+                TC("TC-FLD-02", PumpUntil([&] { return !g.states.empty() && g.states.back().messageName == n
+                    && g.states.back().remoteFieldMax == want; }, 3000));
+                TC("TC-FLD-02", g.states.back().remoteFieldName == L"RemoteField" + std::to_wstring(k + 1));
+                TC("TC-FLD-02", sim.InOrderSince(mk, { 0x1E, 0x9D, 0x8D }));
+
+                // in tren ban tin nay: du lieu gui bang 158D theo ten field cua ban tin, dem dung kich thuoc, khong NAK
+                size_t mp = sim.CmdCount(), ml = g.logs.size();
+                ctrl.StartPrinting(L"ABC", 1);
+                TC("TC-FLD-03", PumpUntil([&] { return sim.CountSince(mp, 0x11) == 1; }, 4000));
+                TC("TC-FLD-03", sim.CountSince(mp, 0x1D) == 0 && sim.CountSince(mp, 0x9E) == 1);
+                TC("TC-FLD-03", sim.With([&](LinxSim& s) { return s.lastField158 == std::string("ABC").append(want - 3, ' ')
+                    && s.lastField158Name == "RemoteField" + std::to_string(k + 1); }));
+                TC("TC-FLD-03", !HasLogSince(ml, L"NAK"));
+                ctrl.StopPrinting();
+                sim.With([](LinxSim& s) { s.printState = 2; return 0; });
+                PumpUntil([] { return LastStatus(PrinterStateType::Ready); }, 3000);
+            }
+            TC("TC-FLD-04", sim.With([](LinxSim& s) { return s.TotalLen("MSG1") == 10 && s.TotalLen("MSG2") == 5
+                && s.TotalLen("MSG3") == 8 && s.TotalLen("MSG4") == 3; }));
+
+            // tra lai cau hinh 1 field / 2 ban tin cho cac test sau
+            sim.With([](LinxSim& s) {
+                s.fieldDefs = { { "RemoteField1", 5 } };
+                s.msgList = { "MSG1", "MSG2" }; s.msgField.clear();
+                return 0; });
+            ctrl.SelectMessage(L"MSG1");
+            ctrl.RefreshMessageList();
+            PumpUntil([] { return !g.states.empty() && g.states.back().messages.size() == 2 && g.states.back().remoteFieldMax == 5; }, 3000);
         }
         // TC-SEQ-02: Stop Jet (10H) -> UI StopingJet trong luc Shutdown(2) -> Idle khi Stopped(3)
         {

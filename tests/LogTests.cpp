@@ -7,8 +7,8 @@
 #include <filesystem>
 #include <thread>
 #include <vector>
-#include "../Linx v2.1.2/Logger.h"
-#include "../Linx v2.1.2/EventLog.h"
+#include "logging/Logger.h"
+#include "logging/EventLog.h"
 
 namespace fs = std::filesystem;
 static int g_fail = 0, g_run = 0;
@@ -21,7 +21,8 @@ static std::string ReadAll(const fs::path& p) {
 }
 
 static void TestLoggerDaily() {
-    Logger::GetInstance().Write(L"Kh\x1EDFi t\x1EA1o UI");          // tiếng Việt
+    Logger::GetInstance().Write(L"Kh\x1EDFi t\x1EA1o UI", 1);      // tiếng Việt (cảnh báo -> được ghi file)
+    Logger::GetInstance().Write(L"thong tin thuong khong ghi file");        // [R52] INFO / DEBUG chỉ ra debug output
     Logger::GetInstance().Write(L"dong thu hai", 2);
     const std::wstring cur = Logger::GetInstance().CurrentLogPath();
     CHECK(!cur.empty());
@@ -30,6 +31,7 @@ static void TestLoggerDaily() {
     const std::string s = ReadAll(cur);
     CHECK(s.find("Kh\xE1\xBB\x9F" "i t\xE1\xBA\xA1o UI") != std::string::npos);
     CHECK(s.find("[ERROR] dong thu hai") != std::string::npos);
+    CHECK(s.find("thong tin thuong") == std::string::npos);        // [R52] mức INFO không vào file
 
     // dọn file: file cũ 100 ngày bị xoá, file mới 1 ngày được giữ, file đang ghi không bao giờ bị xoá
     auto oldp = LinxLogDir() / L"linx_2000-01-01.log";
@@ -53,14 +55,16 @@ static void TestLoggerDaily() {
 }
 
 static void TestEventLog() {
-    EventLog::Append(0, L"B\x1EAFt \x111\x1EA7u in");               // "Bắt đầu in"
+    EventLog::Append(0, L"thong tin thuong");                        // [R52] mức 0 / 3 không được lưu
+    EventLog::Append(3, L"debug");
+    EventLog::Append(1, L"B\x1EAFt \x111\x1EA7u in");               // "Bắt đầu in" (cảnh báo)
     EventLog::Append(2, L"L\x1ED7i: c\xF3 \"d\x1EA5u nh\xE1y\", d\x1EA5u ph\x1EA9y,\nxu\x1ED1ng d\xF2ng");
     EventLog::Append(4, L"OK");
     const auto months = EventLog::ListMonths();
     CHECK(months.size() == 1 && months[0].size() == 7 && months[0][4] == L'-');
     const auto v = EventLog::Load(months[0]);
     CHECK(v.size() == 3);
-    CHECK(v[0].level == 0 && v[0].text == L"B\x1EAFt \x111\x1EA7u in");
+    CHECK(v[0].level == 1 && v[0].text == L"B\x1EAFt \x111\x1EA7u in");
     CHECK(v[0].time.size() == 23 && v[0].time[4] == L'-' && v[0].time[10] == L' ');
     CHECK(v[1].level == 2);
     CHECK(v[1].text.find(L"\"d\x1EA5u nh\xE1y\", d\x1EA5u ph\x1EA9y,") != std::wstring::npos);   // dấu nháy và dấu phẩy giữ nguyên
@@ -105,7 +109,7 @@ static void TestFilter() {
 
 static void TestEventLogThreads() {
     std::vector<std::thread> ts;
-    for (int t = 0; t < 4; ++t) ts.emplace_back([t] { for (int i = 0; i < 50; ++i) EventLog::Append(0, L"thread " + std::to_wstring(t)); });
+    for (int t = 0; t < 4; ++t) ts.emplace_back([t] { for (int i = 0; i < 50; ++i) EventLog::Append(4, L"thread " + std::to_wstring(t)); });
     for (auto& th : ts) th.join();
     const auto v = EventLog::Load(EventLog::ListMonths()[0]);
     CHECK(v.size() == 3 + 200);                                      // không mất / không lẫn dòng

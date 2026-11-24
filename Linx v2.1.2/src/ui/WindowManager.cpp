@@ -1,13 +1,14 @@
 ﻿
-#include "WindowManager.h"
-#include "Logger.h"
-#include "UIManager.h"
-#include "SettingsDialog.h"
-#include "LicenseDialog.h"
-#include "UILayout.h"
-#include "EncodingUtils.h"
-#include "Logger.h"
-#include "LicensePublicKey.h"
+#include "ui/WindowManager.h"
+#include "logging/Logger.h"
+#include "ui/UIManager.h"
+#include "ui/dialogs/SettingsDialog.h"
+#include "ui/dialogs/PinDialog.h"
+#include "ui/dialogs/LicenseDialog.h"
+#include "ui/UILayout.h"
+#include "common/EncodingUtils.h"
+#include "logging/Logger.h"
+#include "license/LicensePublicKey.h"
 #include <commctrl.h>
 // ================== Lifecycle / Window creation ==================
 WindowManager::WindowManager() {}
@@ -34,7 +35,7 @@ bool WindowManager::Initialize(HINSTANCE hInstance) {
     uiManager_ = std::make_unique<UIManager>();
     // [2026-11-22 R43] cài đặt người dùng (vị trí cửa sổ phải biết trước khi tạo cửa sổ)
     settings_ = AppSettings::Load(AppSettings::DefaultPath());
-    Logger::GetInstance().SetRetention(settings_.logKeepDays, settings_.logMaxMB);
+    Logger::GetInstance().SetRetention(settings_.logKeepDays);
     Logger::GetInstance().Write(L"WindowManager initialized");
     return true;
 }
@@ -159,7 +160,9 @@ LRESULT WindowManager::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
     }
     case WM_TIMER:                 // [2026-11-22 R42] 1 = mỗi phút cộng giờ; 2 = kiểm tra một lần lúc khởi động
         if (wParam == 1) LicenseTick();
+        else if (wParam == 3) RefreshRoleUi();      // [2026-11-23 R45] hết phiên giám sát -> về Vận hành
         else if (wParam == 2) {
+            if (!session_.IsLoggedIn()) return 0;   // [R45] còn ở màn hình đăng nhập: chờ
             KillTimer(hwnd_, 2);
             if (license_ && license_->Expired()) OnSettingsClicked(SettingsDialog::License);   // hết hạn: mở sẵn thẻ Bản quyền
         }
@@ -213,6 +216,7 @@ void WindowManager::HandleCreate() {
         appController_->SetLicenseGate([this]() { return license_ && !license_->Expired(); });
         UpdateTitle();
         SetTimer(hwnd_, 1, 60000, nullptr);
+        SetTimer(hwnd_, 3, 10000, nullptr);   // [2026-11-23 R45]
         SetTimer(hwnd_, 2, 1500, nullptr);
         Logger::GetInstance().Write(L"HandleCreate: Start worker thread");
         appController_->StartWorkerThread();
@@ -272,6 +276,7 @@ void WindowManager::HandleDestroy() {
     if (destroyHandled_) return;   // [2026-11-16 R25] member thay cho static
     destroyHandled_ = true;
     KillTimer(hwnd_, 1);
+    KillTimer(hwnd_, 3);
     SaveWindowPlacement();            // [2026-11-22 R43]
     if (license_) license_->Save();   // [2026-11-22 R42] lưu số giờ đã dùng
     // ✅ DỪNG CONTROLLER TRƯỚC KHI POST QUIT
@@ -427,6 +432,7 @@ void WindowManager::OnStopClicked() {
 }
 
 void WindowManager::OnClearClicked() {
+    if (!RequireSupervisor()) return;   // [2026-11-23 R45] chỉ Giám sát viên
     if (uiManager_) {   // kiểm tra UIManager tồn tại
         uiManager_->ClearMessages();    // xóa tất cả message trong log UI
         uiManager_->AddMessage(L"Đã xóa nhật ký", 3);
@@ -443,6 +449,46 @@ void WindowManager::OnDownloadClicked() {
     uiManager_->AddMessage(L"📥 Đang đọc remote field / message / count từ máy in...", 3);
 }
 
+// [2026-11-23 R45] ----- Phân quyền 2 cấp (R51: Vận hành không mật khẩu, Giám sát có mật khẩu) -----
+// Phiên Giám sát tự hết sau 24 giờ kể từ lúc đăng nhập -> về Vận hành viên; chỉ ghi nhật ký, KHÔNG hiện ở màn hình chính.
+void WindowManager::RefreshRoleUi() {
+    const bool sup = session_.IsSupervisor();
+    if (sup == lastSupervisor_) return;
+    lastSupervisor_ = sup;
+    if (!sup) Logger::GetInstance().Write(L"Phiên Giám sát viên đã hết - quay về Vận hành viên");
+}
+
+// [R51] Đổi người dùng: đang là Giám sát -> hạ về Vận hành ngay (không mật khẩu); đang là Vận hành -> hỏi mật khẩu Giám sát.
+// Trả cấp mới (1 = Vận hành, 2 = Giám sát) hoặc 0 nếu hủy.
+int WindowManager::LoginInteractive(HWND owner) {
+    if (session_.IsSupervisor()) {
+        session_.Logout();
+        lastSupervisor_ = false;
+        Logger::GetInstance().Write(L"Đăng xuất Giám sát viên - về Vận hành viên");
+        return 1;
+    }
+    const bool ok = PinDialog::Run(owner, L"Đăng nhập Giám sát viên", 2,
+        [&](const std::string& pin, int) { return session_.Login(auth::Role::Supervisor, pin); });
+    if (!ok) return 0;
+    Logger::GetInstance().Write(L"Đăng nhập: Giám sát viên");
+    lastSupervisor_ = true;
+    return 2;
+}
+
+// Trả true nếu đang là Giám sát viên; nếu chưa thì hỏi mật khẩu Giám sát (Hủy thì false).
+bool WindowManager::RequireSupervisor() {
+    if (session_.IsSupervisor()) return true;
+    const bool ok = PinDialog::Run(hwnd_, L"Đăng nhập Giám sát viên", 2,
+        [&](const std::string& pin, int) { return session_.Login(auth::Role::Supervisor, pin); });
+    if (ok) {
+        if (uiManager_) {
+            Logger::GetInstance().Write(L"Đăng nhập: Giám sát viên");
+        }
+        lastSupervisor_ = true;
+    }
+    return ok;
+}
+
 // [2026-11-22 R44] Chọn bản tin: tải lên máy (30D) và nhớ lựa chọn cho lần mở sau
 void WindowManager::OnMessageSelected() {
     if (!appController_ || !uiManager_) return;
@@ -457,12 +503,15 @@ void WindowManager::OnMessageSelected() {
 // Hết hạn vẫn mở được (để nhập mã gia hạn).
 void WindowManager::OnSettingsClicked(int tab) {
     if (!license_ || !appController_ || !uiManager_) return;
-    SettingsContext ctx;
+    SettingsContext ctx;      // [R48] Vận hành viên vẫn mở được, ở chế độ chỉ xem
+    ctx.readOnly = !session_.IsSupervisor();
     ctx.settings = settings_;
     ctx.license = license_.get();
     ctx.printerSerial = appController_->GetCurrentState().printerSerial;
     ctx.log = [this](const std::wstring& m, int lv) { uiManager_->AddMessage(m, lv); };
     ctx.apply = [this](const AppSettings& s) { ApplySettings(s, /*save=*/true); };
+    ctx.roleText = session_.IsSupervisor() ? L"Giám sát viên" : L"Vận hành viên";
+    ctx.switchUser = [this]() { return LoginInteractive(hwnd_); };
     SettingsDialog::Run(hwnd_, ctx, tab);
     lastWarnHours_ = 1 << 30;     // sau khi gia hạn: nhắc lại từ đầu
     UpdateTitle();
@@ -477,7 +526,7 @@ void WindowManager::ApplySettings(const AppSettings& in, bool save) {
         appController_->SetPrintMessageName(s.printMessageName);
         appController_->SetAutoReconnectAllowed(s.autoReconnect);
     }
-    Logger::GetInstance().SetRetention(s.logKeepDays, s.logMaxMB);
+    Logger::GetInstance().SetRetention(s.logKeepDays);
     if (uiManager_ && !appController_->IsConnected()) uiManager_->SetIPAddress(Utf8ToWide(s.ip));
     if (save) {
         const bool ok = settings_.Save(AppSettings::DefaultPath());
@@ -499,7 +548,7 @@ void WindowManager::SaveWindowPlacement() {
 
 // [2026-11-22 R44] Tiêu đề cố định: thời gian sử dụng CHỈ hiển thị trong ⚙ Cài đặt › Bản quyền.
 void WindowManager::UpdateTitle() {
-    SetWindowTextW(hwnd_, L"Linx Controller - BY BUI_VAN_HOANG");
+    SetWindowTextW(hwnd_, L"Linx Controller");
 }
 
 // Mỗi phút: cộng giờ chạy, nhắc khi còn ≤100 / ≤24 / ≤1 giờ và khi hết hạn

@@ -1,6 +1,6 @@
 ﻿/*
 Logger dùng chung cho toàn bộ chương trình:
-- Ghi log ra file và debug output
+- Ghi ra debug output; ra file chỉ các dòng cảnh báo / lỗi [R52]
 - Hỗ trợ nhiều mức độ log (info, warning, error, debug)
 - Thread-safe
 [2026-11-22 R41] Mặc định ghi vào %LOCALAPPDATA%\LinxController\logs\linx_YYYY-MM-DD.log (mỗi ngày một file,
@@ -18,7 +18,7 @@ SetLogFile(đường dẫn) vẫn dùng được: chuyển sang chế độ mộ
 #include <vector>
 #include <algorithm>
 #include <filesystem>
-#include "AppPaths.h"
+#include "settings/AppPaths.h"
 
 // Singleton Logger class
 class Logger {
@@ -43,7 +43,7 @@ public:
         }
 		std::wstring logEntry = GetCurrentTime() + L" " + levelStr + message;   // Tạo chuỗi log hoàn chỉnh với timestamp và mức độ
 		OutputDebugStringW((logEntry + L"\n").c_str()); // Ghi log ra debug output
-		if (logFile_.is_open()) { // Ghi log ra file nếu file đã được mở
+		if (level >= 1 && level <= 2 && logFile_.is_open()) { // [R52] file kỹ thuật chỉ giữ cảnh báo + lỗi (còn lại chỉ ra debug output)
             // [2026-11-16 R27] Ghi UTF-8. Trước đây dùng wofstream với locale mặc định: gặp ký tự ngoài ASCII
             // (tiếng Việt, emoji) là stream lỗi và MỌI dòng log sau đó bị mất.
             std::string u8 = ToUtf8(logEntry);
@@ -102,10 +102,9 @@ public:
         return removed;
     }
 
-    // [R43] Đặt thời gian giữ nhật ký (từ màn hình Cài đặt) và dọn ngay theo giá trị mới.
-    void SetRetention(int keepDays, int maxMB) {
+    // [R43] Đặt thời gian giữ nhật ký (từ màn hình Cài đặt) và dọn ngay theo giá trị mới. [R52] Dung lượng cố định 200 MB.
+    void SetRetention(int keepDays) {
         keepDays_ = keepDays < 1 ? 1 : keepDays;
-        maxMB_ = maxMB < 1 ? 1 : maxMB;
         CleanupOldLogs();
     }
 
@@ -178,7 +177,7 @@ private:
 	mutable std::mutex logMutex_;   // Mutex để đảm bảo thread-safe khi ghi log
 	bool consoleOutput_ = false;    // Cờ để bật/tắt ghi log ra console (debug output)
     int keepDays_ = 90;                     // [R43] giữ file nhật ký (ngày)
-    int maxMB_ = 200;                       // [R43] tổng dung lượng tối đa (MB)
+    int maxMB_ = 200;                       // tổng dung lượng tối đa (MB), cố định
     bool autoDaily_ = false;                // [R41] true: file theo ngày trong thư mục logs
     std::wstring currentDay_;               // [R41] "YYYY-MM-DD" của file đang mở
     std::filesystem::path currentPath_;     // [R41] file đang ghi

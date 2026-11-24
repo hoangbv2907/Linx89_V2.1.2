@@ -10,7 +10,7 @@
 #include <functional>
 #include <string>
 #include <chrono>
-#include "../Linx v2.1.2/RciClient.h"
+#include "rci/RciClient.h"
 
 using Bytes = std::vector<uint8_t>;
 

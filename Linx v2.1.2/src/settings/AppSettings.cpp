@@ -1,6 +1,6 @@
-#include "AppSettings.h"
-#include "AppPaths.h"
-#include "json.hpp"
+#include "settings/AppSettings.h"
+#include "settings/AppPaths.h"
+#include "third_party/json.hpp"
 #include <algorithm>
 #include <fstream>
 
@@ -28,7 +28,6 @@ bool IsValidIpv4(const std::string& s) {
 void AppSettings::Sanitize() {
     if (!IsValidIpv4(ip)) ip = "127.0.0.1";
     logKeepDays = std::clamp(logKeepDays, 7, 3650);
-    logMaxMB = std::clamp(logMaxMB, 20, 5000);
     bool ok = printMessageName.size() <= 15;
     for (unsigned char c : printMessageName) if (c < 0x20 || c > 0x7E) ok = false;
     if (!ok) printMessageName.clear();
@@ -50,7 +49,6 @@ AppSettings AppSettings::Load(const std::filesystem::path& path) {
         s.autoReconnect = j.value("autoReconnect", s.autoReconnect);
         s.printMessageName = j.value("printMessageName", s.printMessageName);
         s.logKeepDays = j.value("logKeepDays", s.logKeepDays);
-        s.logMaxMB = j.value("logMaxMB", s.logMaxMB);
         if (j.contains("window") && j["window"].is_object()) {
             const auto& w = j["window"];
             s.window.x = w.value("x", 0);
@@ -76,7 +74,6 @@ bool AppSettings::Save(const std::filesystem::path& path) const {
         j["autoReconnect"] = c.autoReconnect;
         j["printMessageName"] = c.printMessageName;
         j["logKeepDays"] = c.logKeepDays;
-        j["logMaxMB"] = c.logMaxMB;
         j["window"] = { {"x", c.window.x}, {"y", c.window.y}, {"w", c.window.w}, {"h", c.window.h}, {"maximized", c.window.maximized} };
         std::error_code ec;
         std::filesystem::create_directories(path.parent_path(), ec);

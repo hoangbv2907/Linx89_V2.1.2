@@ -17,10 +17,10 @@ if not exist "%DIST%" mkdir "%DIST%"
 
 echo === Bien dich Release x64 (/O2 /MT) ===
 pushd "%SRC%"
-cl /nologo /std:c++17 /EHsc /W3 /O2 /MT /GL /DNDEBUG /DUNICODE /D_UNICODE /Fo"%OBJ%\\" ^
-   main.cpp AppController.cpp RciClient.cpp RciWarnings.cpp PrintPersistStorage.cpp ^
-   UIManager.cpp WindowManager.cpp MessageLogger.cpp ModernButton.cpp ToggleSwitch.cpp ^
-   LicenseCore.cpp LicenseDialog.cpp LogViewerDialog.cpp AppSettings.cpp SettingsDialog.cpp ^
+cl /nologo /std:c++17 /EHsc /W3 /O2 /MT /GL /DNDEBUG /DUNICODE /D_UNICODE /Iinclude /Fo"%OBJ%\\" ^
+   src/main.cpp src/controller/AppController.cpp src/rci/RciClient.cpp src/rci/RciWarnings.cpp src/controller/PrintPersistStorage.cpp ^
+   src/ui/UIManager.cpp src/ui/WindowManager.cpp src/ui/MessageLogger.cpp src/ui/ModernButton.cpp src/ui/ToggleSwitch.cpp ^
+   src/license/LicenseCore.cpp src/ui/dialogs/LicenseDialog.cpp src/ui/dialogs/LogViewerDialog.cpp src/settings/AppSettings.cpp src/ui/dialogs/SettingsDialog.cpp src/auth/AuthCore.cpp src/ui/dialogs/PinDialog.cpp ^
    /Fe"%PKG%\LinxController.exe" ^
    /link /LTCG /SUBSYSTEM:WINDOWS /MANIFEST:EMBED /MANIFESTUAC:"level='asInvoker' uiAccess='false'" ^
    user32.lib gdi32.lib comctl32.lib uxtheme.lib shell32.lib ws2_32.lib advapi32.lib ole32.lib comdlg32.lib bcrypt.lib

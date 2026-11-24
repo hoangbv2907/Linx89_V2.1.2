@@ -1,6 +1,6 @@
-﻿#include "ToggleSwitch.h"
-#include "FontManager.h"
-#include "ColorScheme.h"
+﻿#include "ui/ToggleSwitch.h"
+#include "ui/FontManager.h"
+#include "ui/ColorScheme.h"
 
 ToggleSwitch::ToggleSwitch() {}
 

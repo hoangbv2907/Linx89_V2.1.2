@@ -1,4 +1,4 @@
-﻿#include "RciClient.h"
+﻿#include "rci/RciClient.h"
 #include <thread>
 #include <chrono>
 #include <sstream>
@@ -7,7 +7,7 @@
 #include <string>
 #include <algorithm>
 
-#include "RciWarnings.h"
+#include "rci/RciWarnings.h"
 
 #pragma comment(lib, "Ws2_32.lib")
 

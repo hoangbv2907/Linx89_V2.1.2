@@ -1,134 +1,250 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Source Files">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
-    </Filter>
-    <Filter Include="Header Files">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
-    </Filter>
-    <Filter Include="Header Files\Core">
-      <UniqueIdentifier>{62362f76-9bf0-4af9-b279-5d7bd3b24c8e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\UI">
-      <UniqueIdentifier>{a1dd3234-a50e-4fc6-90d0-60fd97ddd0c6}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\Themes">
-      <UniqueIdentifier>{380f0d8e-015d-4c36-8969-c8f488247f58}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\Utils">
-      <UniqueIdentifier>{fa13227e-fbce-4149-9bdc-3e1a38e9cb92}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\UI\Controls">
-      <UniqueIdentifier>{ecfe60b6-8d1d-4f96-b10b-743451ab512a}</UniqueIdentifier>
-    </Filter>
+    <Filter Include="Source Files" />
+    <Filter Include="Header Files" />
+    <Filter Include="Build and Installer" />
+    <Filter Include="Docs" />
+    <Filter Include="Tests" />
+    <Filter Include="Tools" />
+    <Filter Include="Header Files\auth" />
+    <Filter Include="Header Files\common" />
+    <Filter Include="Header Files\controller" />
+    <Filter Include="Header Files\license" />
+    <Filter Include="Header Files\logging" />
+    <Filter Include="Header Files\rci" />
+    <Filter Include="Header Files\settings" />
+    <Filter Include="Header Files\third_party" />
+    <Filter Include="Header Files\ui" />
+    <Filter Include="Header Files\ui\dialogs" />
+    <Filter Include="Source Files\auth" />
+    <Filter Include="Source Files\controller" />
+    <Filter Include="Source Files\license" />
+    <Filter Include="Source Files\rci" />
+    <Filter Include="Source Files\settings" />
+    <Filter Include="Source Files\ui" />
+    <Filter Include="Source Files\ui\dialogs" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="AppController.h">
-      <Filter>Header Files\Core</Filter>
-    </ClInclude>
-    <ClInclude Include="RciClient.h">
-      <Filter>Header Files\Core</Filter>
-    </ClInclude>
-    <ClInclude Include="PrinterModel.h">
-      <Filter>Header Files\Core</Filter>
-    </ClInclude>
-    <ClInclude Include="UIManager.h">
-      <Filter>Header Files\UI</Filter>
-    </ClInclude>
-    <ClInclude Include="WindowManager.h">
-      <Filter>Header Files\UI</Filter>
-    </ClInclude>
-    <ClInclude Include="MessageDef.h">
-      <Filter>Header Files\UI</Filter>
-    </ClInclude>
-    <ClInclude Include="ModernButton.h">
-      <Filter>Header Files\UI\Controls</Filter>
-    </ClInclude>
-    <ClInclude Include="ToggleSwitch.h">
-      <Filter>Header Files\UI\Controls</Filter>
-    </ClInclude>
-    <ClInclude Include="MessageLogger.h">
-      <Filter>Header Files\UI\Controls</Filter>
-    </ClInclude>
-    <ClInclude Include="ColorScheme.h">
-      <Filter>Header Files\Themes</Filter>
-    </ClInclude>
-    <ClInclude Include="FontManager.h">
-      <Filter>Header Files\Themes</Filter>
-    </ClInclude>
-    <ClInclude Include="Logger.h">
-      <Filter>Header Files\Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="CommonDefs.h">
-      <Filter>Header Files\Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="RequestQueue.h">
-      <Filter>Header Files\Core</Filter>
-    </ClInclude>
-    <ClInclude Include="CommonTypes.h">
-      <Filter>Header Files\Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\..\Downloads\json.hpp">
-      <Filter>Header Files\Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="PrintPersistData.h">
-      <Filter>Header Files\Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="PrintPersistStorage.h">
-      <Filter>Header Files\Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="ResourceTracker.h">
-      <Filter>Header Files\Core</Filter>
-    </ClInclude>
-    <ClInclude Include="ThreadSafeQueue.h">
-      <Filter>Header Files\Core</Filter>
-    </ClInclude>
-    <ClInclude Include="MessageBuilder.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="EncodingUtils.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="RciWarnings.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="main.cpp">
+    <ClCompile Include="src\controller\AppController.cpp">
+      <Filter>Source Files\controller</Filter>
+    </ClCompile>
+    <ClCompile Include="src\settings\AppSettings.cpp">
+      <Filter>Source Files\settings</Filter>
+    </ClCompile>
+    <ClCompile Include="src\auth\AuthCore.cpp">
+      <Filter>Source Files\auth</Filter>
+    </ClCompile>
+    <ClCompile Include="src\license\LicenseCore.cpp">
+      <Filter>Source Files\license</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\dialogs\LicenseDialog.cpp">
+      <Filter>Source Files\ui\dialogs</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\dialogs\LogViewerDialog.cpp">
+      <Filter>Source Files\ui\dialogs</Filter>
+    </ClCompile>
+    <ClCompile Include="src\main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="AppController.cpp">
-      <Filter>Header Files\Core</Filter>
+    <ClCompile Include="src\ui\MessageLogger.cpp">
+      <Filter>Source Files\ui</Filter>
     </ClCompile>
-    <ClCompile Include="RciClient.cpp">
-      <Filter>Header Files\Core</Filter>
+    <ClCompile Include="src\ui\ModernButton.cpp">
+      <Filter>Source Files\ui</Filter>
     </ClCompile>
-    <ClCompile Include="UIManager.cpp">
-      <Filter>Header Files\UI</Filter>
+    <ClCompile Include="src\ui\dialogs\PinDialog.cpp">
+      <Filter>Source Files\ui\dialogs</Filter>
     </ClCompile>
-    <ClCompile Include="WindowManager.cpp">
-      <Filter>Header Files\UI</Filter>
+    <ClCompile Include="src\ui\dialogs\SettingsDialog.cpp">
+      <Filter>Source Files\ui\dialogs</Filter>
     </ClCompile>
-    <ClCompile Include="ModernButton.cpp">
-      <Filter>Header Files\UI\Controls</Filter>
+    <ClCompile Include="src\controller\PrintPersistStorage.cpp">
+      <Filter>Source Files\controller</Filter>
     </ClCompile>
-    <ClCompile Include="ToggleSwitch.cpp">
-      <Filter>Header Files\UI\Controls</Filter>
+    <ClCompile Include="src\rci\RciClient.cpp">
+      <Filter>Source Files\rci</Filter>
     </ClCompile>
-    <ClCompile Include="MessageLogger.cpp">
-      <Filter>Header Files\UI\Controls</Filter>
+    <ClCompile Include="src\rci\RciWarnings.cpp">
+      <Filter>Source Files\rci</Filter>
     </ClCompile>
-    <ClCompile Include="PrintPersistStorage.cpp">
-      <Filter>Header Files\Utils</Filter>
+    <ClCompile Include="src\ui\ToggleSwitch.cpp">
+      <Filter>Source Files\ui</Filter>
     </ClCompile>
-    <ClCompile Include="RciWarnings.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="src\ui\UIManager.cpp">
+      <Filter>Source Files\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\WindowManager.cpp">
+      <Filter>Source Files\ui</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="cpp.hint" />
+    <ClInclude Include="include\third_party\json.hpp">
+      <Filter>Header Files\third_party</Filter>
+    </ClInclude>
+    <ClInclude Include="include\controller\AppController.h">
+      <Filter>Header Files\controller</Filter>
+    </ClInclude>
+    <ClInclude Include="include\settings\AppPaths.h">
+      <Filter>Header Files\settings</Filter>
+    </ClInclude>
+    <ClInclude Include="include\auth\AuthCore.h">
+      <Filter>Header Files\auth</Filter>
+    </ClInclude>
+    <ClInclude Include="include\settings\AppSettings.h">
+      <Filter>Header Files\settings</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ui\ColorScheme.h">
+      <Filter>Header Files\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="include\common\CommonDefs.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="include\common\CommonTypes.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="include\common\EncodingUtils.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="include\logging\EventLog.h">
+      <Filter>Header Files\logging</Filter>
+    </ClInclude>
+    <ClInclude Include="include\license\LicenseCore.h">
+      <Filter>Header Files\license</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ui\dialogs\LicenseDialog.h">
+      <Filter>Header Files\ui\dialogs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\license\LicensePublicKey.h">
+      <Filter>Header Files\license</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ui\FontManager.h">
+      <Filter>Header Files\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="include\logging\Logger.h">
+      <Filter>Header Files\logging</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ui\dialogs\LogViewerDialog.h">
+      <Filter>Header Files\ui\dialogs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\rci\MessageBuilder.h">
+      <Filter>Header Files\rci</Filter>
+    </ClInclude>
+    <ClInclude Include="include\controller\MessageDef.h">
+      <Filter>Header Files\controller</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ui\MessageLogger.h">
+      <Filter>Header Files\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ui\ModernButton.h">
+      <Filter>Header Files\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="include\controller\PrinterModel.h">
+      <Filter>Header Files\controller</Filter>
+    </ClInclude>
+    <ClInclude Include="include\controller\PrintPersistData.h">
+      <Filter>Header Files\controller</Filter>
+    </ClInclude>
+    <ClInclude Include="include\controller\PrintPersistStorage.h">
+      <Filter>Header Files\controller</Filter>
+    </ClInclude>
+    <ClInclude Include="include\rci\RciClient.h">
+      <Filter>Header Files\rci</Filter>
+    </ClInclude>
+    <ClInclude Include="include\rci\RciWarnings.h">
+      <Filter>Header Files\rci</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ui\dialogs\PinDialog.h">
+      <Filter>Header Files\ui\dialogs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\controller\RequestQueue.h">
+      <Filter>Header Files\controller</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ui\dialogs\SettingsDialog.h">
+      <Filter>Header Files\ui\dialogs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ui\UILayout.h">
+      <Filter>Header Files\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="include\common\ResourceTracker.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="include\common\ThreadSafeQueue.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ui\ToggleSwitch.h">
+      <Filter>Header Files\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ui\UIManager.h">
+      <Filter>Header Files\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ui\WindowManager.h">
+      <Filter>Header Files\ui</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\tests\AppControllerTests.cpp">
+      <Filter>Tests</Filter>
+    </None>
+    <None Include="..\tests\AuthTests.cpp">
+      <Filter>Tests</Filter>
+    </None>
+    <None Include="..\tests\FakePrinter.h">
+      <Filter>Tests</Filter>
+    </None>
+    <None Include="..\tests\LicenseTests.cpp">
+      <Filter>Tests</Filter>
+    </None>
+    <None Include="..\tests\LogTests.cpp">
+      <Filter>Tests</Filter>
+    </None>
+    <None Include="..\tests\ManualFlowTests.cpp">
+      <Filter>Tests</Filter>
+    </None>
+    <None Include="..\tests\RciFrameTests.cpp">
+      <Filter>Tests</Filter>
+    </None>
+    <None Include="..\tests\RciSimTests.cpp">
+      <Filter>Tests</Filter>
+    </None>
+    <None Include="..\tests\TEST_CASES.md">
+      <Filter>Tests</Filter>
+    </None>
+    <None Include="..\tests\UiTests.cpp">
+      <Filter>Tests</Filter>
+    </None>
+    <None Include="..\tests\build_tests.bat">
+      <Filter>Tests</Filter>
+    </None>
+    <None Include="..\tools\LicenseKeygen.cpp">
+      <Filter>Tools</Filter>
+    </None>
+    <None Include="..\tools\LicenseKeygenGui.cpp">
+      <Filter>Tools</Filter>
+    </None>
+    <None Include="..\tools\build_keygen.bat">
+      <Filter>Tools</Filter>
+    </None>
+    <None Include="..\installer\install.cmd">
+      <Filter>Build and Installer</Filter>
+    </None>
+    <None Include="..\installer\uninstall.cmd">
+      <Filter>Build and Installer</Filter>
+    </None>
+    <None Include="..\build_release.bat">
+      <Filter>Build and Installer</Filter>
+    </None>
+    <None Include="cpp.hint">
+      <Filter>Build and Installer</Filter>
+    </None>
+    <None Include="..\README.md">
+      <Filter>Docs</Filter>
+    </None>
+    <None Include="..\CHANGELOG.md">
+      <Filter>Docs</Filter>
+    </None>
+    <None Include="..\.gitignore">
+      <Filter>Docs</Filter>
+    </None>
   </ItemGroup>
 </Project>

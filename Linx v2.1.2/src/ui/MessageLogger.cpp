@@ -1,5 +1,5 @@
-﻿#include "MessageLogger.h"
-#include "MessageDef.h"
+﻿#include "ui/MessageLogger.h"
+#include "controller/MessageDef.h"
 
 MessageLogger::MessageLogger() {}
 

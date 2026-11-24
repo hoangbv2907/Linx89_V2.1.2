@@ -11,7 +11,7 @@
 #include <fstream>
 #include <algorithm>
 #include <filesystem>
-#include "AppPaths.h"
+#include "settings/AppPaths.h"
 
 class EventLog {
 public:
@@ -38,8 +38,13 @@ public:
         return 0;
     }
 
+    // [R52] Chỉ lưu thông báo QUAN TRỌNG: 1 cảnh báo, 2 lỗi, 4 sự kiện chính (kết nối, bắt đầu/đủ sản lượng, đổi bản tin, gia hạn...).
+    // Mức 0 (thông tin thường) và 3 (gỡ lỗi) chỉ hiện trên màn hình, không ghi file.
+    static bool IsImportant(int level) { return level == 1 || level == 2 || level == 4; }
+
     // Ghi một sự kiện (thread-safe). Không ném ngoại lệ.
     static void Append(int level, const std::wstring& text) {
+        if (!IsImportant(level)) return;
         try {
             std::lock_guard<std::mutex> lock(Mutex());
             SYSTEMTIME st; GetLocalTime(&st);

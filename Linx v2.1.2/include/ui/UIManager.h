@@ -9,11 +9,11 @@
 #include <memory>
 #include <vector>
 
-#include "CommonDefs.h"
-#include "ModernButton.h"
-#include "ToggleSwitch.h"
-#include "MessageLogger.h"
-#include "CommonTypes.h"
+#include "common/CommonDefs.h"
+#include "ui/ModernButton.h"
+#include "ui/ToggleSwitch.h"
+#include "ui/MessageLogger.h"
+#include "common/CommonTypes.h"
 
 class UIManager {
 public:

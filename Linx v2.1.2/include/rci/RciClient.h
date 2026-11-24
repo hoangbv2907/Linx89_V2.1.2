@@ -8,7 +8,7 @@
 #include <thread>
 #include <functional>
 #include <atomic>
-#include "CommonTypes.h"
+#include "common/CommonTypes.h"
 
 // ================== Parsed printer status snapshot ==================
 // PrinterStatus là snapshot sau khi parse phản hồi Status (thường cmd 0x14).
